@@ -14,17 +14,17 @@ const colors = {
 };
 
 const sampleLinks = [
-  { _id: "sample-1", title: "ChatGPT", url: "https://chatgpt.com", category: "AI 工具", note: "思考、写作与创造", color: "blue" },
-  { _id: "sample-2", title: "GitHub", url: "https://github.com", category: "开发", note: "代码与项目", color: "violet" },
-  { _id: "sample-3", title: "Notion", url: "https://notion.so", category: "效率", note: "知识与计划", color: "slate" },
-  { _id: "sample-4", title: "Figma", url: "https://figma.com", category: "设计", note: "界面与原型", color: "pink" },
-  { _id: "sample-5", title: "Linear", url: "https://linear.app", category: "效率", note: "任务与协作", color: "indigo" },
-  { _id: "sample-6", title: "哔哩哔哩", url: "https://bilibili.com", category: "灵感", note: "视频与学习", color: "cyan" },
-  { _id: "sample-7", title: "即刻", url: "https://okjike.com", category: "灵感", note: "发现有趣的人", color: "amber" },
-  { _id: "sample-8", title: "少数派", url: "https://sspai.com", category: "阅读", note: "效率与生活方式", color: "red" },
+  { _id: "sample-1", title: "ChatGPT", url: "https://chatgpt.com", category: "AI 工具", note: "思考、写作与创造", color: "blue", isDefault: true },
+  { _id: "sample-2", title: "GitHub", url: "https://github.com", category: "开发", note: "代码与项目", color: "violet", isDefault: true },
+  { _id: "sample-3", title: "Notion", url: "https://notion.so", category: "效率", note: "知识与计划", color: "slate", isDefault: true },
+  { _id: "sample-4", title: "Figma", url: "https://figma.com", category: "设计", note: "界面与原型", color: "pink", isDefault: true },
+  { _id: "sample-5", title: "Linear", url: "https://linear.app", category: "效率", note: "任务与协作", color: "indigo", isDefault: true },
+  { _id: "sample-6", title: "哔哩哔哩", url: "https://bilibili.com", category: "灵感", note: "视频与学习", color: "cyan", isDefault: true },
+  { _id: "sample-7", title: "即刻", url: "https://okjike.com", category: "灵感", note: "发现有趣的人", color: "amber", isDefault: true },
+  { _id: "sample-8", title: "少数派", url: "https://sspai.com", category: "阅读", note: "效率与生活方式", color: "red", isDefault: true },
 ];
 
-const state = { links: [], query: "", category: "全部", online: false };
+const state = { links: [], query: "", category: "默认分组", online: false };
 const elements = {
   grid: document.querySelector("#linkGrid"),
   filters: document.querySelector("#filters"),
@@ -41,6 +41,7 @@ const elements = {
   category: document.querySelector("#categoryInput"),
   color: document.querySelector("#colorInput"),
   note: document.querySelector("#noteInput"),
+  isDefault: document.querySelector("#defaultInput"),
   error: document.querySelector("#formError"),
   deleteButton: document.querySelector("#deleteButton"),
   saveButton: document.querySelector("#saveButton"),
@@ -72,15 +73,17 @@ function setConnection(online) {
 function filteredLinks() {
   const query = state.query.toLowerCase();
   return state.links.filter((link) => {
-    const categoryMatch = state.category === "全部" || link.category === state.category;
+    const categoryMatch = state.category === "全部"
+      || (state.category === "默认分组" && Boolean(link.isDefault))
+      || link.category === state.category;
     const textMatch = !query || [link.title, link.note, link.category, link.url].some((value) => String(value || "").toLowerCase().includes(query));
     return categoryMatch && textMatch;
   });
 }
 
 function renderFilters() {
-  const categories = ["全部", ...new Set(state.links.map((link) => link.category).filter(Boolean))];
-  if (!categories.includes(state.category)) state.category = "全部";
+  const categories = ["默认分组", "全部", ...new Set(state.links.map((link) => link.category).filter(Boolean))];
+  if (!categories.includes(state.category)) state.category = "默认分组";
   elements.filters.innerHTML = categories.map((category) => `
     <button class="filter ${category === state.category ? "active" : ""}" type="button" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>
   `).join("");
@@ -132,6 +135,7 @@ async function loadLinks() {
 
 function openDialog(link) {
   elements.form.reset();
+  elements.isDefault.checked = true;
   elements.error.textContent = "";
   elements.id.value = link?._id || "";
   elements.dialogTitle.textContent = link ? "编辑链接" : "添加链接";
@@ -142,6 +146,7 @@ function openDialog(link) {
     elements.category.value = link.category || "";
     elements.color.value = link.color || "blue";
     elements.note.value = link.note || "";
+    elements.isDefault.checked = Boolean(link.isDefault);
   }
   elements.dialog.showModal();
   requestAnimationFrame(() => elements.title.focus());
@@ -154,6 +159,7 @@ function formPayload() {
     category: elements.category.value || "其他",
     color: elements.color.value,
     note: elements.note.value,
+    isDefault: elements.isDefault.checked,
   };
 }
 
@@ -244,7 +250,7 @@ function registerWebMcp() {
     description: "读取当前个人导航中的全部链接。",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true, untrustedContentHint: true },
-    execute: async () => ({ links: state.links.map(({ _id, title, url, category, note }) => ({ id: _id, title, url, category, note })) }),
+    execute: async () => ({ links: state.links.map(({ _id, title, url, category, note, isDefault }) => ({ id: _id, title, url, category, note, isDefault })) }),
   });
   register({
     name: "add_navigation_link",
@@ -257,6 +263,7 @@ function registerWebMcp() {
         url: { type: "string", format: "uri" },
         category: { type: "string", maxLength: 30 },
         note: { type: "string", maxLength: 120 },
+        isDefault: { type: "boolean", description: "是否显示在默认分组" },
       },
       required: ["title", "url"],
       additionalProperties: false,
@@ -268,7 +275,7 @@ function registerWebMcp() {
       if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("仅支持 http(s) 链接");
       const payload = await api("/links", {
         method: "POST",
-        body: JSON.stringify({ ...input, category: input.category || "其他", color: "blue" }),
+        body: JSON.stringify({ ...input, category: input.category || "其他", color: "blue", isDefault: input.isDefault !== false }),
       });
       state.links = [...state.links, payload.link];
       render();

@@ -414,6 +414,20 @@ label input, label select {
 }
 
 label input:focus, label select:focus { border-color: var(--accent); }
+.default-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface);
+  cursor: pointer;
+}
+.default-toggle input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.default-toggle > span { display: grid; gap: 1px; margin: 0; color: var(--text); }
+.default-toggle strong { font-size: 0.84rem; }
+.default-toggle small { color: var(--muted); font-size: 0.74rem; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-error { min-height: 1.4em; margin: -4px 0 10px; color: var(--danger); font-size: 0.8rem; }
 .dialog-actions { display: flex; align-items: center; gap: 8px; margin-top: 2px; }

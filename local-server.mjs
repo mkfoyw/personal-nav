@@ -20,14 +20,14 @@ const defaultOrigins = new Set([
 ]);
 
 const defaultLinks = [
-  { title: "ChatGPT", url: "https://chatgpt.com", category: "AI 工具", note: "思考、写作与创造", color: "blue", order: 10 },
-  { title: "GitHub", url: "https://github.com", category: "开发", note: "代码与项目", color: "violet", order: 20 },
-  { title: "Notion", url: "https://notion.so", category: "效率", note: "知识与计划", color: "slate", order: 30 },
-  { title: "Figma", url: "https://figma.com", category: "设计", note: "界面与原型", color: "pink", order: 40 },
-  { title: "Linear", url: "https://linear.app", category: "效率", note: "任务与协作", color: "indigo", order: 50 },
-  { title: "哔哩哔哩", url: "https://bilibili.com", category: "灵感", note: "视频与学习", color: "cyan", order: 60 },
-  { title: "即刻", url: "https://okjike.com", category: "灵感", note: "发现有趣的人", color: "amber", order: 70 },
-  { title: "少数派", url: "https://sspai.com", category: "阅读", note: "效率与生活方式", color: "red", order: 80 },
+  { title: "ChatGPT", url: "https://chatgpt.com", category: "AI 工具", note: "思考、写作与创造", color: "blue", order: 10, isDefault: true },
+  { title: "GitHub", url: "https://github.com", category: "开发", note: "代码与项目", color: "violet", order: 20, isDefault: true },
+  { title: "Notion", url: "https://notion.so", category: "效率", note: "知识与计划", color: "slate", order: 30, isDefault: true },
+  { title: "Figma", url: "https://figma.com", category: "设计", note: "界面与原型", color: "pink", order: 40, isDefault: true },
+  { title: "Linear", url: "https://linear.app", category: "效率", note: "任务与协作", color: "indigo", order: 50, isDefault: true },
+  { title: "哔哩哔哩", url: "https://bilibili.com", category: "灵感", note: "视频与学习", color: "cyan", order: 60, isDefault: true },
+  { title: "即刻", url: "https://okjike.com", category: "灵感", note: "发现有趣的人", color: "amber", order: 70, isDefault: true },
+  { title: "少数派", url: "https://sspai.com", category: "阅读", note: "效率与生活方式", color: "red", order: 80, isDefault: true },
 ];
 
 let client;
@@ -44,6 +44,10 @@ async function connectDatabase() {
     const now = new Date();
     await links.insertMany(defaultLinks.map((item) => ({ ...item, createdAt: now, updatedAt: now })));
   }
+  await links.updateMany(
+    { isDefault: { $exists: false }, url: { $in: defaultLinks.map((item) => item.url) } },
+    { $set: { isDefault: true } },
+  );
   return links;
 }
 
@@ -101,7 +105,14 @@ function normalizeLink(input) {
     throw new Error("请输入有效的 http(s) 地址");
   }
   if (!title) throw new Error("名称不能为空");
-  return { title, url: url.href, category, note, color: String(input.color || "blue").slice(0, 20) };
+  return {
+    title,
+    url: url.href,
+    category,
+    note,
+    color: String(input.color || "blue").slice(0, 20),
+    isDefault: Boolean(input.isDefault),
+  };
 }
 
 function serialize(document) {
@@ -175,7 +186,7 @@ const server = http.createServer(async (req, res) => {
     const file = await readFile(join(root, safePath));
     res.writeHead(200, {
       "Content-Type": mimeTypes[extname(safePath)] || "application/octet-stream",
-      "Cache-Control": safePath === "index.html" ? "no-cache" : "public, max-age=3600",
+      "Cache-Control": "no-cache",
     });
     res.end(file);
   } catch {

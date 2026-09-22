@@ -7,7 +7,7 @@
     <meta name="color-scheme" content="dark" />
     <title>栖点 · 个人导航</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%2309141d'/%3E%3Cpath d='M17 20h30L33 46l-5-14z' fill='%235eead4'/%3E%3Ccircle cx='40' cy='24' r='5' fill='%23e8fffb'/%3E%3C/svg%3E" />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=2" />
   </head>
   <body>
     <div class="ambient ambient-a"></div>
@@ -47,7 +47,7 @@
       </section>
 
       <nav class="filters" id="filters" aria-label="分类筛选">
-        <button class="filter active" type="button" data-category="全部">全部</button>
+        <button class="filter active" type="button" data-category="默认分组">默认分组</button>
       </nav>
 
       <section class="links-section" aria-labelledby="linksHeading">
@@ -110,6 +110,10 @@
           <span>备注</span>
           <input id="noteInput" name="note" maxlength="120" placeholder="一句话描述它的用途" />
         </label>
+        <label class="default-toggle">
+          <input id="defaultInput" name="isDefault" type="checkbox" checked />
+          <span><strong>显示在默认分组</strong><small>打开首页时优先展示这个链接</small></span>
+        </label>
         <p class="form-error" id="formError" role="alert"></p>
         <div class="dialog-actions">
           <button class="text-button danger" id="deleteButton" type="button" hidden>删除</button>
@@ -121,6 +125,6 @@
     </dialog>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="./app.js"></script>
+    <script type="module" src="./app.js?v=2"></script>
   </body>
 </html>
