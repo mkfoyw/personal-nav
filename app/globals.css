@@ -114,13 +114,12 @@
 .theme-sun { display: none; }
 .dark .theme-sun { display: block; }
 .dark .theme-moon { display: none; }
-.navigation-card { min-height: 112px; transition: transform 180ms ease, box-shadow 180ms ease; }
+.navigation-card { min-height: 56px; transition: transform 180ms ease, box-shadow 180ms ease; }
 .navigation-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px color-mix(in srgb, var(--foreground), transparent 95%); }
 .card-destination { overflow-wrap: anywhere; }
 .card-destination::after { content: ""; position: absolute; inset: 0; }
 .card-destination:focus-visible { outline: none; }
 .navigation-card:has(.card-destination:focus-visible) { outline: 2px solid var(--ring); outline-offset: 4px; }
-.link-monogram { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: 11px; font-size: 15px; font-weight: 600; color: var(--link-color, var(--primary)); background: color-mix(in srgb, var(--link-color, var(--primary)), transparent 90%); }
 .color-dot { display: inline-block; width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: var(--link-color); }
 [data-color="blue"] { --link-color: #648ac6; }
 [data-color="violet"] { --link-color: #a48ac9; }

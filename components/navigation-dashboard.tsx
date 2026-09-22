@@ -138,7 +138,7 @@ export function NavigationDashboard() {
           </TabsList></div>
           {tabs.map((tab) => <TabsContent key={tab.value} value={tab.value}>
             <div aria-live="polite" aria-busy={status === "loading"}>
-              {status === "loading" && !links.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="正在加载收藏">{Array.from({ length: 8 }, (_, index) => <Skeleton key={index} className="h-28 rounded-xl" />)}</div>
+              {status === "loading" && !links.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="正在加载收藏">{Array.from({ length: 8 }, (_, index) => <Skeleton key={index} className="h-14 rounded-xl" />)}</div>
                 : visible.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">{visible.map((link) => <LinkCard key={link._id} link={link} onEdit={() => setEditor({ link })} editable={status === "online"} />)}</div>
                   : <Empty className="min-h-64 border border-dashed">
                     <EmptyHeader><EmptyMedia variant="icon">{term ? <Search /> : <Bookmark />}</EmptyMedia><EmptyTitle>{status === "offline" ? "等待与你的收藏重逢" : term ? "没有找到相关收藏" : "这里还很安静"}</EmptyTitle><EmptyDescription>{status === "offline" ? "连接恢复后，你的收藏会出现在这里。" : term ? "试试其他关键词，或查看全部收藏。" : "添加一个喜欢的网站，开始构建自己的小天地。"}</EmptyDescription></EmptyHeader>
