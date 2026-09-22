@@ -3,7 +3,7 @@
 import { ArrowUpRight, Ellipsis, Pin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { NavigationLink } from "@/lib/links";
 
 export function LinkCard({ link, onEdit, editable }: { link: NavigationLink; onEdit: () => void; editable: boolean }) {
@@ -11,24 +11,22 @@ export function LinkCard({ link, onEdit, editable }: { link: NavigationLink; onE
   try { hostname = new URL(link.url).hostname.replace(/^www\./, ""); } catch { /* Preserve the title for legacy records. */ }
   const safeUrl = /^https?:\/\//i.test(link.url) ? link.url : undefined;
   return (
-    <Card className="navigation-card group relative h-full" data-color={link.color}>
-      <CardHeader>
-        <div className="mb-5 flex items-center justify-between gap-2">
-          <span className="link-monogram" aria-hidden="true">{Array.from(link.title.trim())[0]?.toUpperCase()}</span>
-          <Button variant="ghost" size="icon" className="relative z-10" aria-label={`编辑 ${link.title}`} title={`编辑 ${link.title}`} onClick={onEdit} disabled={!editable}><Ellipsis /></Button>
+    <Card size="sm" className="navigation-card group relative h-full gap-3 py-3" data-color={link.color}>
+      <CardHeader className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 px-4">
+        <span className="link-monogram" aria-hidden="true">{Array.from(link.title.trim())[0]?.toUpperCase()}</span>
+        <div className="min-w-0 self-center">
+          <CardTitle className="line-clamp-2"><a href={safeUrl} target="_blank" rel="noopener noreferrer" className="card-destination" aria-label={`打开 ${link.title}`}>{link.title}</a></CardTitle>
+          <CardDescription className="mt-0.5 truncate text-xs" title={link.note}>{link.note || link.categories.join(" · ")}</CardDescription>
         </div>
-        <CardTitle><a href={safeUrl} target="_blank" rel="noopener noreferrer" className="card-destination" aria-label={`打开 ${link.title}`}>{link.title}</a></CardTitle>
-        <CardDescription className="truncate" title={link.note}>{link.note || link.categories.join(" · ")}</CardDescription>
+        <Button variant="ghost" size="icon-sm" className="relative z-10 -mr-1 -mt-1" aria-label={`编辑 ${link.title}`} title={`编辑 ${link.title}`} onClick={onEdit} disabled={!editable}><Ellipsis /></Button>
       </CardHeader>
-      <CardContent className="flex flex-wrap items-center gap-1.5">
-        {link.categories.slice(0, 2).map((category) => <Badge key={category} variant="secondary" className="max-w-full truncate">{category}</Badge>)}
-        {link.categories.length > 2 && <Badge variant="outline">+{link.categories.length - 2}</Badge>}
-        {link.isDefault && <Pin className="ml-auto size-3 text-muted-foreground" aria-label="默认分组" />}
-      </CardContent>
-      <CardFooter className="mt-auto justify-between gap-2">
-        <span className="truncate text-xs text-muted-foreground">{hostname}</span>
+      <CardContent className="mt-auto flex min-w-0 items-center gap-1.5 px-4">
+        {link.categories.slice(0, 1).map((category) => <Badge key={category} variant="secondary" className="max-w-24 truncate">{category}</Badge>)}
+        {link.categories.length > 1 && <Badge variant="outline">+{link.categories.length - 1}</Badge>}
+        {link.isDefault && <Pin className="size-3 shrink-0 text-muted-foreground" aria-label="默认分组" />}
+        <span className="ml-auto min-w-0 truncate text-xs text-muted-foreground">{hostname}</span>
         <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true" />
-      </CardFooter>
+      </CardContent>
     </Card>
   );
 }
