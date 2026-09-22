@@ -2,13 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useTheme } from "next-themes";
-import { ArrowUpRight, Bookmark, Check, CircleAlert, Compass, Database, Download, LayoutGrid, Moon, Plus, RefreshCw, Search, Sun, Upload, X } from "lucide-react";
+import { Bookmark, Check, CircleAlert, Compass, Database, Download, LayoutGrid, Moon, Plus, RefreshCw, Sun, Upload } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -24,32 +22,13 @@ import type { NavigationLink } from "@/lib/links";
 const DEFAULT = "view:default";
 const ALL = "view:all";
 
-function Greeting() {
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => {
-    const update = () => setNow(new Date());
-    const initial = window.setTimeout(update, 0);
-    const timer = window.setInterval(update, 60_000);
-    return () => { clearTimeout(initial); clearInterval(timer); };
-  }, []);
-  const hour = now?.getHours() ?? 12;
-  const greeting = hour < 6 ? "夜深了" : hour < 11 ? "早上好" : hour < 14 ? "中午好" : hour < 18 ? "下午好" : "晚上好";
-  return <div className="flex flex-col gap-5">
-    <p className="flex items-center gap-2 text-xs tracking-widest text-muted-foreground"><span className="size-1.5 rounded-full bg-primary" />{now ? new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "long" }).format(now) : "每一天，都是新的出发"}</p>
-    <h1 className="text-[clamp(2rem,4.3vw,3.5rem)] leading-tight font-medium tracking-tight">{now ? greeting : "你好"}，<br className="sm:hidden" />去想去的地方<span className="text-primary">。</span></h1>
-    <p className="text-sm text-muted-foreground">收藏常去的地方，把时间留给重要的事。</p>
-  </div>;
-}
-
 export function NavigationDashboard() {
   const [links, setLinks] = useState<NavigationLink[]>([]);
   const [status, setStatus] = useState<"loading" | "online" | "offline">("loading");
   const [error, setError] = useState("");
   const [category, setCategory] = useState(DEFAULT);
-  const [query, setQuery] = useState("");
   const [editor, setEditor] = useState<{ link: NavigationLink | null } | null>(null);
   const [transferBusy, setTransferBusy] = useState(false);
-  const searchRef = useRef<HTMLInputElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const { resolvedTheme, setTheme } = useTheme();
 
@@ -69,16 +48,6 @@ export function NavigationDashboard() {
     return () => clearTimeout(timer);
   }, [load]);
 
-  useEffect(() => {
-    function shortcut(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k" && !editor) {
-        event.preventDefault(); searchRef.current?.focus();
-      }
-    }
-    window.addEventListener("keydown", shortcut);
-    return () => window.removeEventListener("keydown", shortcut);
-  }, [editor]);
-
   const save = useCallback((link: NavigationLink) => {
     setLinks((current) => current.some((item) => item._id === link._id) ? current.map((item) => item._id === link._id ? link : item) : [...current, link]);
     setStatus("online");
@@ -89,16 +58,10 @@ export function NavigationDashboard() {
   const categories = [...new Set(links.flatMap((link) => link.categories))];
   const tabs = [{ value: DEFAULT, label: "默认分组" }, { value: ALL, label: "全部收藏" }, ...categories.map((name) => ({ value: `category:${name}`, label: name }))];
   const activeCategory = tabs.some((tab) => tab.value === category) ? category : DEFAULT;
-  const selectedLabel = tabs.find((tab) => tab.value === activeCategory)?.label;
-  const term = query.trim().toLocaleLowerCase();
-  const visible = links.filter((link) => {
-    const matchCategory = activeCategory === ALL || (activeCategory === DEFAULT ? link.isDefault : link.categories.includes(activeCategory.slice(9)));
-    return matchCategory && (!term || [link.title, link.url, link.note, ...link.categories].join(" ").toLocaleLowerCase().includes(term));
-  });
+  const visible = links.filter((link) => activeCategory === ALL || (activeCategory === DEFAULT ? link.isDefault : link.categories.includes(activeCategory.slice(9))));
 
   function added(link: NavigationLink) {
     save(link);
-    setQuery("");
     if (!editor?.link) setCategory(link.isDefault ? DEFAULT : ALL);
   }
 
@@ -156,22 +119,8 @@ export function NavigationDashboard() {
       </div>
     </header>
 
-    <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-5 pt-12 pb-20 sm:px-8 sm:pt-20">
-      <section className="mb-12 flex items-end justify-between gap-8 sm:mb-14" aria-label="欢迎回来">
-        <Greeting />
-        <div className="hidden items-center gap-3 pb-1 text-muted-foreground lg:flex"><ArrowUpRight className="size-10" strokeWidth={1} /><span className="text-xs leading-relaxed">小小的入口<br />大大的世界</span></div>
-      </section>
-
+    <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-5 pt-8 pb-20 sm:px-8 sm:pt-10">
       <section aria-label="收藏导航" className="flex flex-col gap-6">
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-2.5"><Bookmark className="size-4 text-primary" /><h2 className="text-sm font-medium">我的收藏</h2><Badge variant="secondary">{links.length}</Badge></div>
-          <InputGroup className="h-10 sm:max-w-80">
-            <InputGroupInput ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索名称、网址或分类…" aria-label="搜索收藏" onKeyDown={(event) => { if (event.key === "Escape") setQuery(""); }} />
-            <InputGroupAddon><Search /></InputGroupAddon>
-            <InputGroupAddon align="inline-end">{query ? <InputGroupButton size="icon-xs" aria-label="清空搜索" onClick={() => setQuery("")}><X /></InputGroupButton> : <kbd className="hidden text-[10px] sm:block">⌘ K</kbd>}</InputGroupAddon>
-          </InputGroup>
-        </div>
-
         {status === "offline" && <Alert>
           <CircleAlert /><AlertTitle>浏览器存储暂时不可用</AlertTitle>
           <AlertDescription><p>{error}</p><Button variant="outline" size="sm" onClick={() => { setStatus("loading"); setError(""); void load(); }}><RefreshCw data-icon="inline-start" />重新尝试</Button></AlertDescription>
@@ -186,13 +135,12 @@ export function NavigationDashboard() {
               {status === "loading" && !links.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="正在加载收藏">{Array.from({ length: 8 }, (_, index) => <Skeleton key={index} className="h-14 rounded-xl" />)}</div>
                 : visible.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">{visible.map((link) => <LinkCard key={link._id} link={link} onEdit={() => setEditor({ link })} editable={status === "online"} />)}</div>
                   : <Empty className="min-h-64 border border-dashed">
-                    <EmptyHeader><EmptyMedia variant="icon">{term ? <Search /> : <Bookmark />}</EmptyMedia><EmptyTitle>{status === "offline" ? "暂时无法读取收藏" : term ? "没有找到相关收藏" : "这里还很安静"}</EmptyTitle><EmptyDescription>{status === "offline" ? "浏览器存储恢复后，你的收藏会出现在这里。" : term ? "试试其他关键词，或查看全部收藏。" : "添加一个喜欢的网站，开始构建自己的小天地。"}</EmptyDescription></EmptyHeader>
-                    <EmptyContent>{term ? <Button variant="outline" onClick={() => { setQuery(""); setCategory(ALL); }}>查看全部收藏</Button> : <Button variant="outline" onClick={() => setEditor({ link: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />添加第一个链接</Button>}</EmptyContent>
+                    <EmptyHeader><EmptyMedia variant="icon"><Bookmark /></EmptyMedia><EmptyTitle>{status === "offline" ? "暂时无法读取收藏" : "这里还很安静"}</EmptyTitle><EmptyDescription>{status === "offline" ? "浏览器存储恢复后，你的收藏会出现在这里。" : "添加一个喜欢的网站，开始构建自己的小天地。"}</EmptyDescription></EmptyHeader>
+                    <EmptyContent><Button variant="outline" onClick={() => setEditor({ link: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />添加第一个链接</Button></EmptyContent>
                   </Empty>}
             </div>
           </TabsContent>)}
         </Tabs>
-        <p className="text-xs text-muted-foreground" role="status">{status === "loading" ? "正在整理你的收藏…" : `${selectedLabel} · ${visible.length} 个链接${term ? ` · 搜索「${query.trim()}」` : ""}`}</p>
       </section>
     </main>
 
