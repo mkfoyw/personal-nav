@@ -127,8 +127,8 @@ export function NavigationDashboard() {
         </Alert>}
 
         <Tabs value={activeCategory} onValueChange={setCategory} className="gap-7">
-          <div className="max-w-full pb-1"><TabsList variant="line" className="!h-auto w-full flex-wrap justify-start gap-y-2 py-1" aria-label="分类筛选">
-            {tabs.map((tab) => <TabsTrigger className="flex-none" value={tab.value} key={tab.value}>{tab.value === DEFAULT && <LayoutGrid />}{tab.label}</TabsTrigger>)}
+          <div className="max-w-full pb-1"><TabsList variant="line" className="!h-auto w-full flex-wrap justify-start gap-2 py-1" aria-label="分类筛选">
+            {tabs.map((tab) => <TabsTrigger className="h-9 flex-none rounded-lg border-border bg-background px-3 py-1.5 shadow-xs after:hidden hover:bg-muted/50 data-active:border-primary data-active:bg-primary/5 data-active:text-primary dark:data-active:border-primary dark:data-active:bg-primary/10" value={tab.value} key={tab.value}>{tab.value === DEFAULT && <LayoutGrid />}{tab.label}</TabsTrigger>)}
           </TabsList></div>
           {tabs.map((tab) => <TabsContent key={tab.value} value={tab.value}>
             <div aria-live="polite" aria-busy={status === "loading"}>
