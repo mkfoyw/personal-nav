@@ -1,0 +1,12 @@
+{
+  "name": "personal-nav",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node local-server.mjs"
+  },
+  "dependencies": {
+    "mongodb": "^6.19.0"
+  }
+}
