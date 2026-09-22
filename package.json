@@ -7,19 +7,16 @@
     "dev": "next dev --webpack --hostname 127.0.0.1 --port ${PORT:-8788}",
     "build": "next build --webpack",
     "build:sites": "node scripts/build-sites.mjs",
-    "bridge": "node --import tsx server/bridge.ts",
     "start": "next start --hostname 127.0.0.1 --port ${PORT:-8788}",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
-    "check": "npm run lint && npm run typecheck && npm test",
-    "test:integration": "node tests/integration.mjs"
+    "check": "npm run lint && npm run typecheck && npm test"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
     "lucide-react": "^1.47.0",
-    "mongodb": "^6.19.0",
     "next": "^16.3.5",
     "next-themes": "^0.4.6",
     "radix-ui": "^1.6.7",

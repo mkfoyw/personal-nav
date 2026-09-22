@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { api } from "@/lib/client-api";
+import { createLink, deleteLink, updateLink } from "@/lib/indexed-db";
 import { linkColors, normalizeLink, type NavigationLink } from "@/lib/links";
 
 interface Props {
@@ -46,8 +46,8 @@ export function LinkEditor({ link, onClose, onSaved, onDeleted }: Props) {
     }
     setBusy(true);
     try {
-      const payload = await api<{ link: NavigationLink }>(link ? `/links/${link._id}` : "/links", { method: link ? "PATCH" : "POST", body: JSON.stringify(input) });
-      onSaved(payload.link);
+      const saved = link ? await updateLink(link._id, input) : await createLink(input);
+      onSaved(saved);
       toast.success(link ? "链接已更新" : "链接已收藏");
       onClose();
     } catch (error) { setError(error instanceof Error ? error.message : "保存失败，请重试"); }
@@ -59,7 +59,7 @@ export function LinkEditor({ link, onClose, onSaved, onDeleted }: Props) {
     setBusy(true);
     setError("");
     try {
-      await api(`/links/${link._id}`, { method: "DELETE" });
+      await deleteLink(link._id);
       onDeleted(link._id);
       toast.success("链接已删除");
       onClose();

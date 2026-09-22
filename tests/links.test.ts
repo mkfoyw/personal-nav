@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeLink, parseCategories } from "../lib/links";
-import { apiError, checkOrigin, readJson } from "../lib/api";
+import { createLinkExport, mergeImportedLinks, parseLinkImport } from "../lib/link-transfer";
+import type { NavigationLink } from "../lib/links";
 
 const valid = { title: "测试", url: "https://example.com", categories: ["开发"] };
 
@@ -27,16 +28,24 @@ test("rejects unsafe URLs, invalid field types, invalid colors, and empty titles
   assert.throws(() => normalizeLink(null));
 });
 
-test("rejects untrusted browser origins before any database access", () => {
-  assert.doesNotThrow(() => checkOrigin(new Request("http://localhost:8788/api/links", { headers: { origin: "http://localhost:8788" } })));
-  assert.throws(() => checkOrigin(new Request("http://localhost:8788/api/links", { headers: { origin: "https://example.com" } })));
+test("exports and imports validated navigation data", () => {
+  const source: NavigationLink[] = [{
+    ...normalizeLink(valid), _id: "link-1", order: 1,
+    createdAt: "2026-09-22T00:00:00.000Z", updatedAt: "2026-09-22T00:00:00.000Z",
+  }];
+  const exported = createLinkExport(source);
+  assert.equal(exported.format, "qidian-navigation");
+  assert.deepEqual(parseLinkImport(exported), source);
+  assert.deepEqual(parseLinkImport(source), source);
 });
 
-test("malformed and oversized bodies produce validation errors", async () => {
-  for (const body of ["{", "x".repeat(128001)]) {
-    try {
-      await readJson(new Request("http://localhost/api/links", { method: "POST", body }));
-      assert.fail("Expected a rejected request");
-    } catch (error) { assert.equal(apiError(error).status, 400); }
-  }
+test("import rejects malformed rows and merges duplicate URLs", () => {
+  assert.throws(() => parseLinkImport({ nope: [] }));
+  assert.throws(() => parseLinkImport({ links: [{ title: "坏链接", url: "javascript:alert(1)" }] }));
+  const current = parseLinkImport([{ ...valid, _id: "current", note: "旧" }]);
+  const imported = parseLinkImport([{ ...valid, _id: "imported", title: "新名称", note: "新" }]);
+  const merged = mergeImportedLinks(current, imported);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0]._id, "current");
+  assert.equal(merged[0].title, "新名称");
 });

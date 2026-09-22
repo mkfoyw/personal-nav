@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useTheme } from "next-themes";
-import { ArrowUpRight, Bookmark, Check, CircleAlert, Compass, LayoutGrid, Moon, Plus, RefreshCw, Search, Sun, X } from "lucide-react";
+import { ArrowUpRight, Bookmark, Check, CircleAlert, Compass, Database, Download, LayoutGrid, Moon, Plus, RefreshCw, Search, Sun, Upload, X } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -15,7 +17,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LinkCard } from "@/components/link-card";
 import { LinkEditor } from "@/components/link-editor";
 import { useWebMcp } from "@/hooks/use-web-mcp";
-import { api } from "@/lib/client-api";
+import { importAndMergeLinks, initializeLinks, replaceLinks } from "@/lib/indexed-db";
+import { createLinkExport, parseLinkImport } from "@/lib/link-transfer";
 import type { NavigationLink } from "@/lib/links";
 
 const DEFAULT = "view:default";
@@ -45,25 +48,25 @@ export function NavigationDashboard() {
   const [category, setCategory] = useState(DEFAULT);
   const [query, setQuery] = useState("");
   const [editor, setEditor] = useState<{ link: NavigationLink | null } | null>(null);
+  const [transferBusy, setTransferBusy] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const importRef = useRef<HTMLInputElement>(null);
   const { resolvedTheme, setTheme } = useTheme();
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const load = useCallback(async () => {
     try {
-      const result = await api<{ links: NavigationLink[] }>("/links", { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10000)]) : undefined });
-      setLinks(result.links);
+      setLinks(await initializeLinks());
       setStatus("online");
+      setError("");
     } catch (error) {
-      if (signal?.aborted) return;
       setStatus("offline");
-      setError(error instanceof Error && error.name !== "TimeoutError" ? error.message : "连接超时，请稍后重试。");
+      setError(error instanceof Error ? error.message : "无法打开浏览器存储，请稍后重试。");
     }
   }, []);
 
   useEffect(() => {
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => void load(controller.signal), 0);
-    return () => { clearTimeout(timer); controller.abort(); };
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => clearTimeout(timer);
   }, [load]);
 
   useEffect(() => {
@@ -99,13 +102,55 @@ export function NavigationDashboard() {
     if (!editor?.link) setCategory(link.isDefault ? DEFAULT : ALL);
   }
 
+  async function importData(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > 10_000_000) return toast.error("备份文件不能超过 10 MB");
+    setTransferBusy(true);
+    try {
+      const imported = parseLinkImport(JSON.parse(await file.text()));
+      const hasOnlyStarterLinks = links.every((link) => link._id.startsWith("starter-"));
+      const merged = hasOnlyStarterLinks ? imported : await importAndMergeLinks(imported);
+      if (hasOnlyStarterLinks) await replaceLinks(imported);
+      setLinks(merged);
+      setStatus("online");
+      setError("");
+      toast.success(`已导入 ${imported.length} 个链接`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "导入失败，请检查文件内容");
+    } finally { setTransferBusy(false); }
+  }
+
+  function exportData() {
+    try {
+      const content = JSON.stringify(createLinkExport(links), null, 2);
+      const url = URL.createObjectURL(new Blob([content], { type: "application/json;charset=utf-8" }));
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `qidian-links-${new Date().toISOString().slice(0, 10)}.json`;
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      toast.success(`已导出 ${links.length} 个链接`);
+    } catch { toast.error("导出失败，请稍后重试"); }
+  }
+
   return <div className="page-shell flex min-h-dvh flex-col">
     <a href="#main" className="skip-link">跳转到收藏</a>
     <header className="border-b border-border/70">
       <div className="mx-auto flex h-20 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
         <Link href="/" className="flex items-center gap-3" aria-label="栖点首页"><span className="brand-symbol"><Compass className="size-5" strokeWidth={1.5} /></span><span className="text-lg font-semibold tracking-[0.14em]">栖点</span><span className="ml-2 hidden text-[10px] tracking-[0.2em] text-muted-foreground sm:inline">YOUR LITTLE CORNER</span></Link>
         <div className="flex items-center gap-3">
+          <input ref={importRef} type="file" accept=".json,application/json" className="hidden" onChange={importData} />
           <Button variant="ghost" size="icon-lg" aria-label="切换明暗主题" onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}><Sun className="theme-sun" /><Moon className="theme-moon" /></Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-lg" aria-label="导入或导出数据" title="导入或导出数据"><Database /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-40">
+              <DropdownMenuLabel>浏览器数据</DropdownMenuLabel>
+              <DropdownMenuItem disabled={transferBusy || status !== "online"} onSelect={() => importRef.current?.click()}><Upload />导入 JSON</DropdownMenuItem>
+              <DropdownMenuItem disabled={transferBusy || status !== "online" || !links.length} onSelect={exportData}><Download />导出 JSON</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button size="lg" onClick={() => setEditor({ link: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />添加链接</Button>
         </div>
       </div>
@@ -128,8 +173,8 @@ export function NavigationDashboard() {
         </div>
 
         {status === "offline" && <Alert>
-          <CircleAlert /><AlertTitle>收藏库暂时未连接</AlertTitle>
-          <AlertDescription><p>{error}</p><Button variant="outline" size="sm" onClick={() => { setStatus("loading"); setError(""); void load(); }}><RefreshCw data-icon="inline-start" />重新连接</Button></AlertDescription>
+          <CircleAlert /><AlertTitle>浏览器存储暂时不可用</AlertTitle>
+          <AlertDescription><p>{error}</p><Button variant="outline" size="sm" onClick={() => { setStatus("loading"); setError(""); void load(); }}><RefreshCw data-icon="inline-start" />重新尝试</Button></AlertDescription>
         </Alert>}
 
         <Tabs value={activeCategory} onValueChange={setCategory} className="gap-7">
@@ -141,7 +186,7 @@ export function NavigationDashboard() {
               {status === "loading" && !links.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="正在加载收藏">{Array.from({ length: 8 }, (_, index) => <Skeleton key={index} className="h-14 rounded-xl" />)}</div>
                 : visible.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">{visible.map((link) => <LinkCard key={link._id} link={link} onEdit={() => setEditor({ link })} editable={status === "online"} />)}</div>
                   : <Empty className="min-h-64 border border-dashed">
-                    <EmptyHeader><EmptyMedia variant="icon">{term ? <Search /> : <Bookmark />}</EmptyMedia><EmptyTitle>{status === "offline" ? "等待与你的收藏重逢" : term ? "没有找到相关收藏" : "这里还很安静"}</EmptyTitle><EmptyDescription>{status === "offline" ? "连接恢复后，你的收藏会出现在这里。" : term ? "试试其他关键词，或查看全部收藏。" : "添加一个喜欢的网站，开始构建自己的小天地。"}</EmptyDescription></EmptyHeader>
+                    <EmptyHeader><EmptyMedia variant="icon">{term ? <Search /> : <Bookmark />}</EmptyMedia><EmptyTitle>{status === "offline" ? "暂时无法读取收藏" : term ? "没有找到相关收藏" : "这里还很安静"}</EmptyTitle><EmptyDescription>{status === "offline" ? "浏览器存储恢复后，你的收藏会出现在这里。" : term ? "试试其他关键词，或查看全部收藏。" : "添加一个喜欢的网站，开始构建自己的小天地。"}</EmptyDescription></EmptyHeader>
                     <EmptyContent>{term ? <Button variant="outline" onClick={() => { setQuery(""); setCategory(ALL); }}>查看全部收藏</Button> : <Button variant="outline" onClick={() => setEditor({ link: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />添加第一个链接</Button>}</EmptyContent>
                   </Empty>}
             </div>
@@ -154,7 +199,7 @@ export function NavigationDashboard() {
     <footer className="mx-auto w-full max-w-6xl px-5 pb-7 sm:px-8">
       <Separator className="mb-6" />
       <div className="flex flex-col justify-between gap-3 text-xs text-muted-foreground sm:flex-row sm:items-center">
-        <span className="flex items-center gap-2">{status === "online" ? <Check className="size-3 text-primary" /> : <span className="size-1.5 rounded-full bg-muted-foreground" />}{status === "online" ? "收藏已连接 · 数据保存在本机" : status === "loading" ? "正在连接收藏库" : "收藏库离线"}</span>
+        <span className="flex items-center gap-2">{status === "online" ? <Check className="size-3 text-primary" /> : <span className="size-1.5 rounded-full bg-muted-foreground" />}{status === "online" ? "数据已保存在此浏览器 · IndexedDB" : status === "loading" ? "正在打开浏览器存储" : "浏览器存储不可用"}</span>
         <span className="text-[10px] tracking-[0.18em]">A PLACE FOR YOUR EVERYDAY INTERNET.</span>
       </div>
     </footer>
