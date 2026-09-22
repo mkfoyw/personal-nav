@@ -95,7 +95,13 @@ async function readJson(req) {
 
 function normalizeLink(input) {
   const title = String(input.title || "").trim().slice(0, 80);
-  const category = String(input.category || "其他").trim().slice(0, 30) || "其他";
+  const categorySource = Array.isArray(input.categories)
+    ? input.categories
+    : String(input.category || "其他").split(/[,，]/);
+  const categories = [...new Set(categorySource
+    .map((value) => String(value).trim().slice(0, 30))
+    .filter(Boolean))].slice(0, 10);
+  if (!categories.length) categories.push("其他");
   const note = String(input.note || "").trim().slice(0, 120);
   let url;
   try {
@@ -108,7 +114,8 @@ function normalizeLink(input) {
   return {
     title,
     url: url.href,
-    category,
+    categories,
+    category: categories[0],
     note,
     color: String(input.color || "blue").slice(0, 20),
     isDefault: Boolean(input.isDefault),
@@ -116,7 +123,10 @@ function normalizeLink(input) {
 }
 
 function serialize(document) {
-  return { ...document, _id: document._id.toString() };
+  const categories = Array.isArray(document.categories) && document.categories.length
+    ? document.categories
+    : [document.category || "其他"];
+  return { ...document, categories, category: categories[0], _id: document._id.toString() };
 }
 
 async function handleApi(req, res, pathname) {
