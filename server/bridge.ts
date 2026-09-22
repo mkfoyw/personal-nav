@@ -2,7 +2,10 @@ import http from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { MongoClient, ObjectId, type Collection, type Document } from "mongodb";
+import nextEnv from "@next/env";
 import { InputError, normalizeLink } from "../lib/links";
+
+nextEnv.loadEnvConfig(process.cwd());
 
 const root = join(process.cwd(), "dist");
 const port = Number(process.env.PORT || 8788);
