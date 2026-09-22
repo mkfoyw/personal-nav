@@ -8,11 +8,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createLink, deleteLink, updateLink } from "@/lib/indexed-db";
-import { linkColors, normalizeLink, type NavigationLink } from "@/lib/links";
+import { normalizeLink, type NavigationLink } from "@/lib/links";
 
 interface Props {
   link: NavigationLink | null;
@@ -22,7 +21,6 @@ interface Props {
 }
 
 export function LinkEditor({ link, onClose, onSaved, onDeleted }: Props) {
-  const [color, setColor] = useState(link?.color || "blue");
   const [isDefault, setIsDefault] = useState(link?.isDefault ?? true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -37,7 +35,7 @@ export function LinkEditor({ link, onClose, onSaved, onDeleted }: Props) {
     const fields = new FormData(event.currentTarget);
     let input;
     try {
-      input = normalizeLink({ title: fields.get("title"), url: fields.get("url"), categories: fields.get("categories"), note: fields.get("note"), color, isDefault });
+      input = normalizeLink({ title: fields.get("title"), url: fields.get("url"), categories: fields.get("categories"), note: fields.get("note"), isDefault });
     } catch (error) {
       const message = error instanceof Error ? error.message : "请检查输入内容";
       if (message.includes("分类")) setCategoriesError(message);
@@ -87,23 +85,12 @@ export function LinkEditor({ link, onClose, onSaved, onDeleted }: Props) {
                 <FieldLabel htmlFor="link-url">网址</FieldLabel>
                 <Input id="link-url" name="url" defaultValue={link?.url} placeholder="https://example.com" type="url" required maxLength={4096} autoComplete="url" />
               </Field>
-              <FieldGroup className="sm:flex-row">
-                <Field data-invalid={Boolean(categoriesError)}>
-                  <FieldLabel htmlFor="link-categories">分类</FieldLabel>
-                  <Input id="link-categories" name="categories" defaultValue={link?.categories.join("，")} placeholder="效率，AI 工具" aria-invalid={Boolean(categoriesError)} aria-describedby="category-help" />
-                  <FieldDescription id="category-help">用逗号分隔，最多 10 个。</FieldDescription>
-                  {categoriesError && <FieldError>{categoriesError}</FieldError>}
-                </Field>
-                <Field className="sm:max-w-36">
-                  <FieldLabel htmlFor="link-color">标识色彩</FieldLabel>
-                  <Select value={color} onValueChange={(value) => setColor(value as keyof typeof linkColors)} disabled={busy}>
-                    <SelectTrigger id="link-color" className="w-full"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectGroup>
-                      {Object.entries(linkColors).map(([value, label]) => <SelectItem key={value} value={value}><span className="color-dot" data-color={value} />{label}</SelectItem>)}
-                    </SelectGroup></SelectContent>
-                  </Select>
-                </Field>
-              </FieldGroup>
+              <Field data-invalid={Boolean(categoriesError)}>
+                <FieldLabel htmlFor="link-categories">分类</FieldLabel>
+                <Input id="link-categories" name="categories" defaultValue={link?.categories.join("，")} placeholder="效率，AI 工具" aria-invalid={Boolean(categoriesError)} aria-describedby="category-help" />
+                <FieldDescription id="category-help">用逗号分隔，最多 10 个。</FieldDescription>
+                {categoriesError && <FieldError>{categoriesError}</FieldError>}
+              </Field>
               <Field>
                 <FieldLabel htmlFor="link-note">备注（选填）</FieldLabel>
                 <Input id="link-note" name="note" defaultValue={link?.note} placeholder="一句话描述它的用途" maxLength={120} />

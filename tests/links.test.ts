@@ -21,8 +21,8 @@ test("deduplicates categories and supports Chinese delimiters", () => {
   assert.throws(() => parseCategories(["a".repeat(31)]));
 });
 
-test("rejects unsafe URLs, invalid field types, invalid colors, and empty titles", () => {
-  for (const patch of [{ url: "javascript:alert(1)" }, { url: "file:///tmp/test" }, { url: "nonsense" }, { title: " " }, { title: {} }, { categories: [7] }, { isDefault: "true" }, { color: "__proto__" }, { note: "x".repeat(121) }]) {
+test("rejects unsafe URLs, invalid field types, and empty titles", () => {
+  for (const patch of [{ url: "javascript:alert(1)" }, { url: "file:///tmp/test" }, { url: "nonsense" }, { title: " " }, { title: {} }, { categories: [7] }, { isDefault: "true" }, { note: "x".repeat(121) }]) {
     assert.throws(() => normalizeLink({ ...valid, ...patch }));
   }
   assert.throws(() => normalizeLink(null));

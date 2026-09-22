@@ -120,15 +120,6 @@
 .card-destination::after { content: ""; position: absolute; inset: 0; }
 .card-destination:focus-visible { outline: none; }
 .navigation-card:has(.card-destination:focus-visible) { outline: 2px solid var(--ring); outline-offset: 4px; }
-.color-dot { display: inline-block; width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: var(--link-color); }
-[data-color="blue"] { --link-color: #648ac6; }
-[data-color="violet"] { --link-color: #a48ac9; }
-[data-color="cyan"] { --link-color: #51a5b4; }
-[data-color="pink"] { --link-color: #ca83aa; }
-[data-color="amber"] { --link-color: #c49c48; }
-[data-color="red"] { --link-color: #cd7777; }
-[data-color="slate"] { --link-color: #94a39a; }
-[data-color="indigo"] { --link-color: #858dca; }
 .skip-link { position: fixed; top: 8px; left: 8px; transform: translateY(-150%); padding: 8px 12px; background: var(--background); color: var(--foreground); }
 .skip-link:focus { transform: translateY(0); z-index: 60; }
 @media (prefers-reduced-motion: reduce) {

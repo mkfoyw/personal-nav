@@ -36,7 +36,7 @@ export function useWebMcp(links: NavigationLink[], online: boolean, onAdd: (link
       annotations: { readOnlyHint: false, untrustedContentHint: false },
       execute: async (input: Record<string, unknown>) => {
         if (!current.current.online) throw new Error("浏览器收藏库尚未就绪，请稍后重试");
-        const link = await createLink(normalizeLink({ ...input, color: "blue", isDefault: input.isDefault !== false }));
+        const link = await createLink(normalizeLink({ ...input, isDefault: input.isDefault !== false }));
         current.current.onAdd(link);
         return { id: link._id, title: link.title, saved: true };
       },
