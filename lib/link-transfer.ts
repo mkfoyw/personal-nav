@@ -1,21 +1,29 @@
 import { normalizeLink, type NavigationLink } from "@/lib/links";
+import { normalizeNote, type NavigationNote } from "@/lib/notes";
 
 export const EXPORT_FORMAT = "qidian-navigation";
-export const EXPORT_VERSION = 1;
+export const EXPORT_VERSION = 2;
 
 export interface LinkExport {
   format: typeof EXPORT_FORMAT;
   version: typeof EXPORT_VERSION;
   exportedAt: string;
   links: NavigationLink[];
+  notes: NavigationNote[];
 }
 
-export function createLinkExport(links: NavigationLink[]): LinkExport {
+export interface LibraryImport {
+  links: NavigationLink[];
+  notes: NavigationNote[];
+}
+
+export function createLinkExport(links: NavigationLink[], notes: NavigationNote[] = []): LinkExport {
   return {
     format: EXPORT_FORMAT,
     version: EXPORT_VERSION,
     exportedAt: new Date().toISOString(),
     links,
+    notes,
   };
 }
 
@@ -50,6 +58,35 @@ export function parseLinkImport(value: unknown): NavigationLink[] {
   });
 }
 
+export function parseLibraryImport(value: unknown): LibraryImport {
+  const links = parseLinkImport(value);
+  const rows = value && typeof value === "object" && !Array.isArray(value) && Array.isArray((value as { notes?: unknown }).notes)
+    ? (value as { notes: unknown[] }).notes
+    : [];
+  const now = new Date().toISOString();
+  const seenIds = new Set<string>();
+  const notes = rows.map((row, index) => {
+    if (!row || typeof row !== "object" || Array.isArray(row)) throw new Error(`第 ${index + 1} 篇笔记格式无效`);
+    try {
+      const source = row as Record<string, unknown>;
+      const normalized = normalizeNote(source);
+      let id = typeof source._id === "string" && source._id.trim() ? source._id.trim() : crypto.randomUUID();
+      if (seenIds.has(id)) id = crypto.randomUUID();
+      seenIds.add(id);
+      return {
+        ...normalized,
+        _id: id,
+        order: typeof source.order === "number" && Number.isFinite(source.order) ? source.order : index,
+        createdAt: typeof source.createdAt === "string" ? source.createdAt : now,
+        updatedAt: typeof source.updatedAt === "string" ? source.updatedAt : now,
+      };
+    } catch (error) {
+      throw new Error(`第 ${index + 1} 篇笔记无效：${error instanceof Error ? error.message : "格式错误"}`);
+    }
+  });
+  return { links, notes };
+}
+
 export function mergeImportedLinks(current: NavigationLink[], imported: NavigationLink[]): NavigationLink[] {
   const result = [...current];
   const byId = new Map(result.map((link, index) => [link._id, index]));
@@ -66,6 +103,22 @@ export function mergeImportedLinks(current: NavigationLink[], imported: Navigati
       result[existingIndex] = { ...link, _id: existing._id, createdAt: existing.createdAt || link.createdAt };
       byId.set(existing._id, existingIndex);
       byUrl.set(link.url, existingIndex);
+    }
+  }
+  return result;
+}
+
+export function mergeImportedNotes(current: NavigationNote[], imported: NavigationNote[]): NavigationNote[] {
+  const result = [...current];
+  const byId = new Map(result.map((note, index) => [note._id, index]));
+  for (const note of imported) {
+    const existingIndex = byId.get(note._id);
+    if (existingIndex === undefined) {
+      byId.set(note._id, result.length);
+      result.push(note);
+    } else {
+      const existing = result[existingIndex];
+      result[existingIndex] = { ...note, order: existing.order, createdAt: existing.createdAt || note.createdAt };
     }
   }
   return result;

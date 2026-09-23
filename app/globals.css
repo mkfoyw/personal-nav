@@ -122,6 +122,27 @@
 .navigation-card:has(.card-destination:focus-visible) { outline: 2px solid var(--ring); outline-offset: 4px; }
 .skip-link { position: fixed; top: 8px; left: 8px; transform: translateY(-150%); padding: 8px 12px; background: var(--background); color: var(--foreground); }
 .skip-link:focus { transform: translateY(0); z-index: 60; }
+.markdown-content { overflow-wrap: anywhere; }
+.markdown-content > :first-child { margin-top: 0; }
+.markdown-content > :last-child { margin-bottom: 0; }
+.markdown-content h1, .markdown-content h2, .markdown-content h3 { margin: 1.1em 0 0.45em; font-weight: 600; line-height: 1.35; }
+.markdown-content h1 { font-size: 1.35em; }
+.markdown-content h2 { font-size: 1.2em; }
+.markdown-content h3 { font-size: 1.05em; }
+.markdown-content p, .markdown-content ul, .markdown-content ol, .markdown-content blockquote, .markdown-content pre, .markdown-content table { margin: 0.65em 0; }
+.markdown-content ul, .markdown-content ol { padding-left: 1.5em; }
+.markdown-content ul { list-style: disc; }
+.markdown-content ol { list-style: decimal; }
+.markdown-content li + li { margin-top: 0.25em; }
+.markdown-content a { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+.markdown-content blockquote { border-left: 3px solid var(--border); padding-left: 0.85em; color: var(--muted-foreground); }
+.markdown-content :not(pre) > code { border-radius: 0.3rem; background: var(--muted); padding: 0.12em 0.35em; font-size: 0.9em; }
+.markdown-content pre { overflow-x: auto; border-radius: 0.5rem; background: var(--muted); padding: 0.8em 1em; }
+.markdown-content pre code { font-size: 0.88em; }
+.markdown-content table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; }
+.markdown-content th, .markdown-content td { border: 1px solid var(--border); padding: 0.4em 0.65em; text-align: left; }
+.markdown-content th { background: var(--muted); font-weight: 600; }
+.markdown-content input[type="checkbox"] { margin-right: 0.4em; accent-color: var(--primary); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }

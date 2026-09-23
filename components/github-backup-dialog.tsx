@@ -9,19 +9,21 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { downloadLinksFromGitHub, uploadLinksToGitHub } from "@/lib/github-sync";
-import { clearGitHubBackupSettings, replaceLinks, saveGitHubBackupSettings, type GitHubBackupSettings } from "@/lib/indexed-db";
+import { clearGitHubBackupSettings, replaceLibraryData, saveGitHubBackupSettings, type GitHubBackupSettings } from "@/lib/indexed-db";
 import type { NavigationLink } from "@/lib/links";
+import type { NavigationNote } from "@/lib/notes";
 
 interface Props {
   open: boolean;
   settings: GitHubBackupSettings | null;
   links: NavigationLink[];
+  notes: NavigationNote[];
   onOpenChange: (open: boolean) => void;
   onSettingsSaved: (settings: GitHubBackupSettings | null) => void;
-  onRestored: (links: NavigationLink[]) => void;
+  onRestored: (links: NavigationLink[], notes: NavigationNote[]) => void;
 }
 
-export function GitHubBackupDialog({ open, settings, links, onOpenChange, onSettingsSaved, onRestored }: Props) {
+export function GitHubBackupDialog({ open, settings, links, notes, onOpenChange, onSettingsSaved, onRestored }: Props) {
   const [repository, setRepository] = useState("");
   const [branch, setBranch] = useState("main");
   const [token, setToken] = useState("");
@@ -81,8 +83,8 @@ export function GitHubBackupDialog({ open, settings, links, onOpenChange, onSett
     setError("");
     try {
       const value = await persistSettings();
-      await uploadLinksToGitHub(value, links);
-      toast.success(`已同步 ${links.length} 个收藏到 GitHub`);
+      await uploadLinksToGitHub(value, links, notes);
+      toast.success(`已同步 ${links.length} 个链接和 ${notes.length} 篇笔记到 GitHub`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "同步失败，请稍后重试");
     } finally { setBusy(false); }
@@ -95,9 +97,9 @@ export function GitHubBackupDialog({ open, settings, links, onOpenChange, onSett
     try {
       const value = await persistSettings();
       const restored = await downloadLinksFromGitHub(value);
-      await replaceLinks(restored);
-      onRestored(restored);
-      toast.success(`已从 GitHub 恢复 ${restored.length} 个收藏`);
+      await replaceLibraryData(restored.links, restored.notes);
+      onRestored(restored.links, restored.notes);
+      toast.success(`已从 GitHub 恢复 ${restored.links.length} 个链接和 ${restored.notes.length} 篇笔记`);
       onOpenChange(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "恢复失败，请稍后重试");
@@ -109,7 +111,7 @@ export function GitHubBackupDialog({ open, settings, links, onOpenChange, onSett
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>GitHub 私有备份</DialogTitle>
-          <DialogDescription>把当前浏览器的收藏保存到你的私有仓库，也可以从仓库恢复。</DialogDescription>
+          <DialogDescription>把当前浏览器的链接和 Markdown 笔记保存到你的私有仓库，也可以从仓库恢复。</DialogDescription>
         </DialogHeader>
         <FieldGroup>
           <Field>
@@ -129,7 +131,7 @@ export function GitHubBackupDialog({ open, settings, links, onOpenChange, onSett
             </FieldDescription>
           </Field>
         </FieldGroup>
-        <p className="text-xs text-muted-foreground">备份文件：<span className="font-mono">qidian-navigation-backup.json</span>。恢复会替换当前浏览器的收藏。</p>
+        <p className="text-xs text-muted-foreground">备份文件：<span className="font-mono">qidian-navigation-backup.json</span>。恢复会替换当前浏览器的链接和笔记。</p>
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
         <DialogFooter className="-mx-4 -mb-4 flex-col-reverse sm:flex-row sm:justify-between">
           <div className="flex flex-wrap gap-2">
@@ -138,7 +140,7 @@ export function GitHubBackupDialog({ open, settings, links, onOpenChange, onSett
           </div>
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
             <Button type="button" variant="outline" onClick={() => setConfirmRestore(true)} disabled={busy}>{busy ? "处理中…" : "从 GitHub 恢复"}</Button>
-            <Button type="button" onClick={() => void sync()} disabled={busy || !links.length}>{busy ? "正在同步…" : "同步到 GitHub"}</Button>
+            <Button type="button" onClick={() => void sync()} disabled={busy || (!links.length && !notes.length)}>{busy ? "正在同步…" : "同步到 GitHub"}</Button>
           </div>
         </DialogFooter>
       </DialogContent>
@@ -146,8 +148,8 @@ export function GitHubBackupDialog({ open, settings, links, onOpenChange, onSett
     <AlertDialog open={confirmRestore} onOpenChange={setConfirmRestore}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>从 GitHub 恢复收藏？</AlertDialogTitle>
-          <AlertDialogDescription>当前浏览器里的收藏会被仓库备份完整替换。建议先将当前收藏同步到 GitHub。</AlertDialogDescription>
+          <AlertDialogTitle>从 GitHub 恢复数据？</AlertDialogTitle>
+          <AlertDialogDescription>当前浏览器里的链接和笔记会被仓库备份完整替换。建议先将当前数据同步到 GitHub。</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={busy}>取消</AlertDialogCancel>

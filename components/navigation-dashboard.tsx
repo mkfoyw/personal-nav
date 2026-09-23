@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useTheme } from "next-themes";
-import { Bookmark, Check, CircleAlert, Compass, Database, Download, Cloud, LayoutGrid, Moon, Plus, RefreshCw, Sun, Upload } from "lucide-react";
+import { Bookmark, Check, CircleAlert, Compass, Database, Download, Cloud, LayoutGrid, Moon, NotebookPen, Plus, RefreshCw, Sun, Upload } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,11 +14,14 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LinkCard } from "@/components/link-card";
 import { LinkEditor } from "@/components/link-editor";
+import { NoteCard } from "@/components/note-card";
+import { NoteEditor } from "@/components/note-editor";
 import { GitHubBackupDialog } from "@/components/github-backup-dialog";
 import { useWebMcp } from "@/hooks/use-web-mcp";
-import { getGitHubBackupSettings, importAndMergeLinks, initializeLinks, replaceLinks, type GitHubBackupSettings } from "@/lib/indexed-db";
-import { createLinkExport, parseLinkImport } from "@/lib/link-transfer";
+import { getGitHubBackupSettings, initializeLinks, listNotes, replaceLibraryData, saveNoteOrder, type GitHubBackupSettings } from "@/lib/indexed-db";
+import { createLinkExport, mergeImportedLinks, mergeImportedNotes, parseLibraryImport } from "@/lib/link-transfer";
 import type { NavigationLink } from "@/lib/links";
+import type { NavigationNote } from "@/lib/notes";
 
 const DEFAULT = "view:default";
 const ALL = "view:all";
@@ -41,10 +44,14 @@ function Greeting() {
 
 export function NavigationDashboard() {
   const [links, setLinks] = useState<NavigationLink[]>([]);
+  const [notes, setNotes] = useState<NavigationNote[]>([]);
+  const [view, setView] = useState<"links" | "notes">("links");
+  const [noteTag, setNoteTag] = useState("全部笔记");
   const [status, setStatus] = useState<"loading" | "online" | "offline">("loading");
   const [error, setError] = useState("");
   const [category, setCategory] = useState(DEFAULT);
   const [editor, setEditor] = useState<{ link: NavigationLink | null } | null>(null);
+  const [noteEditor, setNoteEditor] = useState<{ note: NavigationNote | null } | null>(null);
   const [githubBackupOpen, setGithubBackupOpen] = useState(false);
   const [githubSettings, setGithubSettings] = useState<GitHubBackupSettings | null>(null);
   const [transferBusy, setTransferBusy] = useState(false);
@@ -53,8 +60,9 @@ export function NavigationDashboard() {
 
   const load = useCallback(async () => {
     try {
-      const [savedLinks, savedGitHubSettings] = await Promise.all([initializeLinks(), getGitHubBackupSettings()]);
+      const [savedLinks, savedNotes, savedGitHubSettings] = await Promise.all([initializeLinks(), listNotes(), getGitHubBackupSettings()]);
       setLinks(savedLinks);
+      setNotes(savedNotes);
       setGithubSettings(savedGitHubSettings);
       setStatus("online");
       setError("");
@@ -80,6 +88,9 @@ export function NavigationDashboard() {
   const tabs = [{ value: DEFAULT, label: "默认分组" }, { value: ALL, label: "全部收藏" }, ...categories.map((name) => ({ value: `category:${name}`, label: name }))];
   const activeCategory = tabs.some((tab) => tab.value === category) ? category : DEFAULT;
   const visible = links.filter((link) => activeCategory === ALL || (activeCategory === DEFAULT ? link.isDefault : link.categories.includes(activeCategory.slice(9))));
+  const noteTags = [...new Set(notes.flatMap((note) => note.tags))];
+  const activeNoteTag = noteTags.includes(noteTag) || noteTag === "全部笔记" ? noteTag : "全部笔记";
+  const visibleNotes = notes.filter((note) => activeNoteTag === "全部笔记" || note.tags.includes(activeNoteTag));
 
   function added(link: NavigationLink) {
     save(link);
@@ -93,14 +104,16 @@ export function NavigationDashboard() {
     if (file.size > 10_000_000) return toast.error("备份文件不能超过 10 MB");
     setTransferBusy(true);
     try {
-      const imported = parseLinkImport(JSON.parse(await file.text()));
+      const imported = parseLibraryImport(JSON.parse(await file.text()));
       const hasOnlyStarterLinks = links.every((link) => link._id.startsWith("starter-"));
-      const merged = hasOnlyStarterLinks ? imported : await importAndMergeLinks(imported);
-      if (hasOnlyStarterLinks) await replaceLinks(imported);
-      setLinks(merged);
+      const nextLinks = hasOnlyStarterLinks ? imported.links : mergeImportedLinks(links, imported.links);
+      const nextNotes = hasOnlyStarterLinks && notes.length === 0 ? imported.notes : mergeImportedNotes(notes, imported.notes);
+      await replaceLibraryData(nextLinks, nextNotes);
+      setLinks(nextLinks);
+      setNotes(nextNotes);
       setStatus("online");
       setError("");
-      toast.success(`已导入 ${imported.length} 个链接`);
+      toast.success(`已导入 ${imported.links.length} 个链接和 ${imported.notes.length} 篇笔记`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "导入失败，请检查文件内容");
     } finally { setTransferBusy(false); }
@@ -108,14 +121,14 @@ export function NavigationDashboard() {
 
   function exportData() {
     try {
-      const content = JSON.stringify(createLinkExport(links), null, 2);
+      const content = JSON.stringify(createLinkExport(links, notes), null, 2);
       const url = URL.createObjectURL(new Blob([content], { type: "application/json;charset=utf-8" }));
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `qidian-links-${new Date().toISOString().slice(0, 10)}.json`;
+      anchor.download = `qidian-backup-${new Date().toISOString().slice(0, 10)}.json`;
       anchor.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 0);
-      toast.success(`已导出 ${links.length} 个链接`);
+      toast.success(`已导出 ${links.length} 个链接和 ${notes.length} 篇笔记`);
     } catch { toast.error("导出失败，请稍后重试"); }
   }
 
@@ -137,7 +150,7 @@ export function NavigationDashboard() {
               <DropdownMenuItem disabled={status !== "online"} onSelect={() => setGithubBackupOpen(true)}><Cloud />GitHub 私有备份</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button size="lg" onClick={() => setEditor({ link: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />添加链接</Button>
+          <Button size="lg" onClick={() => view === "links" ? setEditor({ link: null }) : setNoteEditor({ note: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />{view === "links" ? "添加链接" : "添加笔记"}</Button>
         </div>
       </div>
     </header>
@@ -152,7 +165,12 @@ export function NavigationDashboard() {
           <AlertDescription><p>{error}</p><Button variant="outline" size="sm" onClick={() => { setStatus("loading"); setError(""); void load(); }}><RefreshCw data-icon="inline-start" />重新尝试</Button></AlertDescription>
         </Alert>}
 
-        <Tabs value={activeCategory} onValueChange={setCategory} className="gap-7">
+        <div className="flex gap-2" role="tablist" aria-label="内容类型">
+          <Button role="tab" aria-selected={view === "links"} variant={view === "links" ? "secondary" : "ghost"} onClick={() => setView("links")}><Bookmark data-icon="inline-start" />链接</Button>
+          <Button role="tab" aria-selected={view === "notes"} variant={view === "notes" ? "secondary" : "ghost"} onClick={() => setView("notes")}><NotebookPen data-icon="inline-start" />笔记</Button>
+        </div>
+
+        {view === "links" ? <Tabs value={activeCategory} onValueChange={setCategory} className="gap-7">
           <div className="max-w-full pb-1"><TabsList variant="line" className="!h-auto w-full flex-wrap justify-start gap-2 py-1" aria-label="分类筛选">
             {tabs.map((tab) => <TabsTrigger className="h-9 flex-none rounded-lg border-border bg-background px-3 py-1.5 shadow-xs after:hidden hover:bg-muted/50 data-active:border-primary data-active:bg-primary/5 data-active:text-primary dark:data-active:border-primary dark:data-active:bg-primary/10" value={tab.value} key={tab.value}>{tab.value === DEFAULT && <LayoutGrid />}{tab.label}</TabsTrigger>)}
           </TabsList></div>
@@ -166,7 +184,24 @@ export function NavigationDashboard() {
                   </Empty>}
             </div>
           </TabsContent>)}
-        </Tabs>
+        </Tabs> : <div className="flex flex-col gap-6">
+          <div className="flex max-w-full flex-wrap gap-2" aria-label="笔记标签筛选">
+            {["全部笔记", ...noteTags].map((tag) => <Button key={tag} size="sm" variant={activeNoteTag === tag ? "secondary" : "ghost"} onClick={() => setNoteTag(tag)} aria-pressed={activeNoteTag === tag}>{tag}</Button>)}
+          </div>
+          <div aria-live="polite" aria-busy={status === "loading"}>
+            {status === "loading" && !notes.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="正在加载笔记">{Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-44 rounded-xl" />)}</div>
+              : visibleNotes.length ? <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">{visibleNotes.map((note, index) => <NoteCard key={note._id} note={note} editable={status === "online"} first={index === 0} last={index === visibleNotes.length - 1} onEdit={() => setNoteEditor({ note })} onMove={(direction) => {
+                const target = index + direction;
+                if (target < 0 || target >= visibleNotes.length) return;
+                const ids = notes.map((item) => item._id);
+                const currentIndex = ids.indexOf(note._id);
+                const targetIndex = ids.indexOf(visibleNotes[target]._id);
+                [ids[currentIndex], ids[targetIndex]] = [ids[targetIndex], ids[currentIndex]];
+                void saveNoteOrder(ids).then(setNotes).catch((error) => toast.error(error instanceof Error ? error.message : "排序保存失败"));
+              }} />)}</div>
+                : <Empty className="min-h-64 border border-dashed"><EmptyHeader><EmptyMedia variant="icon"><NotebookPen /></EmptyMedia><EmptyTitle>{notes.length ? "这个标签下还没有笔记" : "还没有笔记"}</EmptyTitle><EmptyDescription>{notes.length ? "选择其他标签，或为笔记添加这个标签。" : "把想法、清单或资料记下来，支持 Markdown 格式。"}</EmptyDescription></EmptyHeader><EmptyContent><Button variant="outline" onClick={() => setNoteEditor({ note: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />新建第一篇笔记</Button></EmptyContent></Empty>}
+          </div>
+        </div>}
       </section>
     </main>
 
@@ -181,10 +216,12 @@ export function NavigationDashboard() {
       open={githubBackupOpen}
       settings={githubSettings}
       links={links}
+      notes={notes}
       onOpenChange={setGithubBackupOpen}
       onSettingsSaved={setGithubSettings}
-      onRestored={(restored) => { setLinks(restored); setStatus("online"); setError(""); setCategory(DEFAULT); }}
+      onRestored={(restoredLinks, restoredNotes) => { setLinks(restoredLinks); setNotes(restoredNotes); setStatus("online"); setError(""); setCategory(DEFAULT); setView("links"); }}
     />
     {editor && <LinkEditor link={editor.link} onClose={() => setEditor(null)} onSaved={added} onDeleted={(id) => { setLinks((current) => current.filter((link) => link._id !== id)); }} />}
+    {noteEditor && <NoteEditor note={noteEditor.note} onClose={() => setNoteEditor(null)} onSaved={(note) => { setNotes((current) => current.some((item) => item._id === note._id) ? current.map((item) => item._id === note._id ? note : item) : [...current, note]); }} onDeleted={(id) => { setNotes((current) => current.filter((note) => note._id !== id)); }} />}
   </div>;
 }

@@ -1,6 +1,7 @@
-import { createLinkExport, parseLinkImport } from "@/lib/link-transfer";
+import { createLinkExport, parseLibraryImport } from "@/lib/link-transfer";
 import type { GitHubBackupSettings } from "@/lib/indexed-db";
 import type { NavigationLink } from "@/lib/links";
+import type { NavigationNote } from "@/lib/notes";
 
 const API = "https://api.github.com";
 const BACKUP_FILE = "qidian-navigation-backup.json";
@@ -62,13 +63,13 @@ function encodeBase64(text: string) {
   return btoa(binary);
 }
 
-export async function uploadLinksToGitHub(settings: GitHubBackupSettings, links: NavigationLink[]) {
+export async function uploadLinksToGitHub(settings: GitHubBackupSettings, links: NavigationLink[], notes: NavigationNote[]) {
   const repository = await validatePrivateRepository(settings);
   const existing = await getBackupFile(settings, repository);
   const url = `${API}/repos/${repository}/contents/${BACKUP_FILE}`;
   const body = {
     message: "Update Qidian navigation backup",
-    content: encodeBase64(JSON.stringify(createLinkExport(links), null, 2)),
+    content: encodeBase64(JSON.stringify(createLinkExport(links, notes), null, 2)),
     branch: settings.branch,
     ...(existing ? { sha: existing.sha } : {}),
   };
@@ -76,12 +77,12 @@ export async function uploadLinksToGitHub(settings: GitHubBackupSettings, links:
   return await response.json() as { commit?: { html_url?: string } };
 }
 
-export async function downloadLinksFromGitHub(settings: GitHubBackupSettings): Promise<NavigationLink[]> {
+export async function downloadLinksFromGitHub(settings: GitHubBackupSettings) {
   const repository = await validatePrivateRepository(settings);
   const backup = await getBackupFile(settings, repository);
   if (!backup) throw new Error("这个分支还没有备份文件，请先同步一次");
   let value: unknown;
   try { value = JSON.parse(backup.text); }
   catch { throw new Error("GitHub 上的备份文件不是有效 JSON"); }
-  return parseLinkImport(value);
+  return parseLibraryImport(value);
 }
