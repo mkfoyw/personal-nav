@@ -186,10 +186,6 @@ export function NavigationDashboard() {
         </Tabs>
 
         <section aria-label="笔记" className="flex flex-col gap-5 border-t border-border/70 pt-7 sm:pt-9">
-          <div className="flex items-center justify-between gap-4">
-            <h2 className="text-xl font-medium tracking-tight">笔记</h2>
-            <Button variant="outline" size="sm" onClick={() => setNoteEditor({ note: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />新建笔记</Button>
-          </div>
           <Tabs value={activeNoteTag} onValueChange={setNoteTag}>
             <TabsList variant="line" className="!h-auto w-full flex-wrap justify-start gap-2 py-1" aria-label="笔记标签筛选">
               {[{ value: NOTE_DEFAULT, label: "默认分组" }, { value: NOTE_ALL, label: "全部笔记" }, ...noteTags.map((tag) => ({ value: `tag:${tag}`, label: tag }))].map((tab) => <TabsTrigger className="h-9 flex-none rounded-lg border-border bg-background px-3 py-1.5 shadow-xs after:hidden hover:bg-muted/50 data-active:border-primary data-active:bg-primary/5 data-active:text-primary dark:data-active:border-primary dark:data-active:bg-primary/10" value={tab.value} key={tab.value}>{tab.label}</TabsTrigger>)}
