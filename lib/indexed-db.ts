@@ -6,6 +6,12 @@ const DATABASE_VERSION = 1;
 const LINKS_STORE = "links";
 const META_STORE = "meta";
 
+export interface GitHubBackupSettings {
+  repository: string;
+  branch: string;
+  token: string;
+}
+
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
@@ -122,4 +128,28 @@ export async function importAndMergeLinks(imported: NavigationLink[]): Promise<N
   const merged = mergeImportedLinks(await listLinks(), imported);
   await replaceLinks(merged);
   return sortLinks(merged);
+}
+
+export async function getGitHubBackupSettings(): Promise<GitHubBackupSettings | null> {
+  const database = await openDatabase();
+  try {
+    const row = await requestResult(database.transaction(META_STORE).objectStore(META_STORE).get("github-backup") as IDBRequest<{ key: string; value: GitHubBackupSettings } | undefined>);
+    return row?.value ?? null;
+  } finally { database.close(); }
+}
+
+export async function saveGitHubBackupSettings(settings: GitHubBackupSettings): Promise<void> {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(META_STORE, "readwrite");
+    transaction.objectStore(META_STORE).put({ key: "github-backup", value: settings });
+    await transactionDone(transaction);
+  } finally { database.close(); }
+}
+
+export async function clearGitHubBackupSettings(): Promise<void> {
+  const database = await openDatabase();
+  try {
+    await requestResult(database.transaction(META_STORE, "readwrite").objectStore(META_STORE).delete("github-backup"));
+  } finally { database.close(); }
 }

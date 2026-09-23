@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useTheme } from "next-themes";
-import { Bookmark, Check, CircleAlert, Compass, Database, Download, LayoutGrid, Moon, Plus, RefreshCw, Sun, Upload } from "lucide-react";
+import { Bookmark, Check, CircleAlert, Compass, Database, Download, Cloud, LayoutGrid, Moon, Plus, RefreshCw, Sun, Upload } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -14,8 +14,9 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LinkCard } from "@/components/link-card";
 import { LinkEditor } from "@/components/link-editor";
+import { GitHubBackupDialog } from "@/components/github-backup-dialog";
 import { useWebMcp } from "@/hooks/use-web-mcp";
-import { importAndMergeLinks, initializeLinks, replaceLinks } from "@/lib/indexed-db";
+import { getGitHubBackupSettings, importAndMergeLinks, initializeLinks, replaceLinks, type GitHubBackupSettings } from "@/lib/indexed-db";
 import { createLinkExport, parseLinkImport } from "@/lib/link-transfer";
 import type { NavigationLink } from "@/lib/links";
 
@@ -44,13 +45,17 @@ export function NavigationDashboard() {
   const [error, setError] = useState("");
   const [category, setCategory] = useState(DEFAULT);
   const [editor, setEditor] = useState<{ link: NavigationLink | null } | null>(null);
+  const [githubBackupOpen, setGithubBackupOpen] = useState(false);
+  const [githubSettings, setGithubSettings] = useState<GitHubBackupSettings | null>(null);
   const [transferBusy, setTransferBusy] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
   const { resolvedTheme, setTheme } = useTheme();
 
   const load = useCallback(async () => {
     try {
-      setLinks(await initializeLinks());
+      const [savedLinks, savedGitHubSettings] = await Promise.all([initializeLinks(), getGitHubBackupSettings()]);
+      setLinks(savedLinks);
+      setGithubSettings(savedGitHubSettings);
       setStatus("online");
       setError("");
     } catch (error) {
@@ -128,6 +133,8 @@ export function NavigationDashboard() {
               <DropdownMenuLabel>浏览器数据</DropdownMenuLabel>
               <DropdownMenuItem disabled={transferBusy || status !== "online"} onSelect={() => importRef.current?.click()}><Upload />导入 JSON</DropdownMenuItem>
               <DropdownMenuItem disabled={transferBusy || status !== "online" || !links.length} onSelect={exportData}><Download />导出 JSON</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled={status !== "online"} onSelect={() => setGithubBackupOpen(true)}><Cloud />GitHub 私有备份</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button size="lg" onClick={() => setEditor({ link: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />添加链接</Button>
@@ -170,6 +177,14 @@ export function NavigationDashboard() {
         <span className="text-[10px] tracking-[0.18em]">A PLACE FOR YOUR EVERYDAY INTERNET.</span>
       </div>
     </footer>
+    <GitHubBackupDialog
+      open={githubBackupOpen}
+      settings={githubSettings}
+      links={links}
+      onOpenChange={setGithubBackupOpen}
+      onSettingsSaved={setGithubSettings}
+      onRestored={(restored) => { setLinks(restored); setStatus("online"); setError(""); setCategory(DEFAULT); }}
+    />
     {editor && <LinkEditor link={editor.link} onClose={() => setEditor(null)} onSaved={added} onDeleted={(id) => { setLinks((current) => current.filter((link) => link._id !== id)); }} />}
   </div>;
 }
