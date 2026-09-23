@@ -190,9 +190,11 @@ export function NavigationDashboard() {
             <h2 className="text-xl font-medium tracking-tight">笔记</h2>
             <Button variant="outline" size="sm" onClick={() => setNoteEditor({ note: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />新建笔记</Button>
           </div>
-          <div className="flex max-w-full flex-wrap gap-2" aria-label="笔记标签筛选">
-            {[{ value: NOTE_DEFAULT, label: "默认分组" }, { value: NOTE_ALL, label: "全部笔记" }, ...noteTags.map((tag) => ({ value: `tag:${tag}`, label: tag }))].map((tab) => <Button key={tab.value} size="sm" variant="outline" className={`h-9 flex-none rounded-lg border-border bg-background px-3 py-1.5 shadow-xs after:hidden hover:bg-muted/50 ${activeNoteTag === tab.value ? "border-primary bg-primary/5 text-primary dark:bg-primary/10" : ""}`} onClick={() => setNoteTag(tab.value)} aria-pressed={activeNoteTag === tab.value}>{tab.label}</Button>)}
-          </div>
+          <Tabs value={activeNoteTag} onValueChange={setNoteTag}>
+            <TabsList variant="line" className="!h-auto w-full flex-wrap justify-start gap-2 py-1" aria-label="笔记标签筛选">
+              {[{ value: NOTE_DEFAULT, label: "默认分组" }, { value: NOTE_ALL, label: "全部笔记" }, ...noteTags.map((tag) => ({ value: `tag:${tag}`, label: tag }))].map((tab) => <TabsTrigger className="h-9 flex-none rounded-lg border-border bg-background px-3 py-1.5 shadow-xs after:hidden hover:bg-muted/50 data-active:border-primary data-active:bg-primary/5 data-active:text-primary dark:data-active:border-primary dark:data-active:bg-primary/10" value={tab.value} key={tab.value}>{tab.label}</TabsTrigger>)}
+            </TabsList>
+          </Tabs>
           <div aria-live="polite" aria-busy={status === "loading"}>
             {status === "loading" && !notes.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="正在加载笔记">{Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-44 rounded-xl" />)}</div>
               : visibleNotes.length ? <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">{visibleNotes.map((note, index) => <NoteCard key={note._id} note={note} editable={status === "online"} first={index === 0} last={index === visibleNotes.length - 1} onEdit={() => setNoteEditor({ note })} onMove={(direction) => {
