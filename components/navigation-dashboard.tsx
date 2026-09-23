@@ -22,6 +22,23 @@ import type { NavigationLink } from "@/lib/links";
 const DEFAULT = "view:default";
 const ALL = "view:all";
 
+function Greeting() {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    const update = () => setNow(new Date());
+    const initial = window.setTimeout(update, 0);
+    const timer = window.setInterval(update, 60_000);
+    return () => { clearTimeout(initial); clearInterval(timer); };
+  }, []);
+  const hour = now?.getHours() ?? 12;
+  const greeting = hour < 6 ? "夜深了" : hour < 11 ? "早上好" : hour < 14 ? "中午好" : hour < 18 ? "下午好" : "晚上好";
+  return <div className="flex flex-col gap-5">
+    <p className="flex items-center gap-2 text-xs tracking-widest text-muted-foreground"><span className="size-1.5 rounded-full bg-primary" />{now ? new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "long" }).format(now) : "每一天，都是新的出发"}</p>
+    <h1 className="text-[clamp(2rem,4.3vw,3.5rem)] leading-tight font-medium tracking-tight">{now ? greeting : "你好"}，<br className="sm:hidden" />去想去的地方<span className="text-primary">。</span></h1>
+    <p className="text-sm text-muted-foreground">收藏常去的地方，把时间留给重要的事。</p>
+  </div>;
+}
+
 export function NavigationDashboard() {
   const [links, setLinks] = useState<NavigationLink[]>([]);
   const [status, setStatus] = useState<"loading" | "online" | "offline">("loading");
@@ -119,7 +136,10 @@ export function NavigationDashboard() {
       </div>
     </header>
 
-    <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-5 pt-8 pb-20 sm:px-8 sm:pt-10">
+    <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-5 pt-12 pb-20 sm:px-8 sm:pt-20">
+      <section className="mb-12 sm:mb-14" aria-label="欢迎回来">
+        <Greeting />
+      </section>
       <section aria-label="收藏导航" className="flex flex-col gap-6">
         {status === "offline" && <Alert>
           <CircleAlert /><AlertTitle>浏览器存储暂时不可用</AlertTitle>
