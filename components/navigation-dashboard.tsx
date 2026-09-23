@@ -35,7 +35,6 @@ function Greeting() {
   return <div className="flex flex-col gap-5">
     <p className="flex items-center gap-2 text-xs tracking-widest text-muted-foreground"><span className="size-1.5 rounded-full bg-primary" />{now ? new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "long" }).format(now) : "每一天，都是新的出发"}</p>
     <h1 className="text-[clamp(2rem,4.3vw,3.5rem)] leading-tight font-medium tracking-tight">{now ? greeting : "你好"}，<br className="sm:hidden" />去想去的地方<span className="text-primary">。</span></h1>
-    <p className="text-sm text-muted-foreground">收藏常去的地方，把时间留给重要的事。</p>
   </div>;
 }
 
