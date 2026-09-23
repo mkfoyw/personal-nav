@@ -45,7 +45,6 @@ function Greeting() {
 export function NavigationDashboard() {
   const [links, setLinks] = useState<NavigationLink[]>([]);
   const [notes, setNotes] = useState<NavigationNote[]>([]);
-  const [view, setView] = useState<"links" | "notes">("links");
   const [noteTag, setNoteTag] = useState("全部笔记");
   const [status, setStatus] = useState<"loading" | "online" | "offline">("loading");
   const [error, setError] = useState("");
@@ -150,7 +149,7 @@ export function NavigationDashboard() {
               <DropdownMenuItem disabled={status !== "online"} onSelect={() => setGithubBackupOpen(true)}><Cloud />GitHub 私有备份</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button size="lg" onClick={() => view === "links" ? setEditor({ link: null }) : setNoteEditor({ note: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />{view === "links" ? "添加链接" : "添加笔记"}</Button>
+          <Button size="lg" onClick={() => setEditor({ link: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />添加链接</Button>
         </div>
       </div>
     </header>
@@ -165,12 +164,7 @@ export function NavigationDashboard() {
           <AlertDescription><p>{error}</p><Button variant="outline" size="sm" onClick={() => { setStatus("loading"); setError(""); void load(); }}><RefreshCw data-icon="inline-start" />重新尝试</Button></AlertDescription>
         </Alert>}
 
-        <div className="flex gap-2" role="tablist" aria-label="内容类型">
-          <Button role="tab" aria-selected={view === "links"} variant={view === "links" ? "secondary" : "ghost"} onClick={() => setView("links")}><Bookmark data-icon="inline-start" />链接</Button>
-          <Button role="tab" aria-selected={view === "notes"} variant={view === "notes" ? "secondary" : "ghost"} onClick={() => setView("notes")}><NotebookPen data-icon="inline-start" />笔记</Button>
-        </div>
-
-        {view === "links" ? <Tabs value={activeCategory} onValueChange={setCategory} className="gap-7">
+        <Tabs value={activeCategory} onValueChange={setCategory} className="gap-7">
           <div className="max-w-full pb-1"><TabsList variant="line" className="!h-auto w-full flex-wrap justify-start gap-2 py-1" aria-label="分类筛选">
             {tabs.map((tab) => <TabsTrigger className="h-9 flex-none rounded-lg border-border bg-background px-3 py-1.5 shadow-xs after:hidden hover:bg-muted/50 data-active:border-primary data-active:bg-primary/5 data-active:text-primary dark:data-active:border-primary dark:data-active:bg-primary/10" value={tab.value} key={tab.value}>{tab.value === DEFAULT && <LayoutGrid />}{tab.label}</TabsTrigger>)}
           </TabsList></div>
@@ -184,7 +178,13 @@ export function NavigationDashboard() {
                   </Empty>}
             </div>
           </TabsContent>)}
-        </Tabs> : <div className="flex flex-col gap-6">
+        </Tabs>
+
+        <section aria-label="笔记" className="flex flex-col gap-5 border-t border-border/70 pt-7 sm:pt-9">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-xl font-medium tracking-tight">笔记</h2>
+            <Button variant="outline" size="sm" onClick={() => setNoteEditor({ note: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />新建笔记</Button>
+          </div>
           <div className="flex max-w-full flex-wrap gap-2" aria-label="笔记标签筛选">
             {["全部笔记", ...noteTags].map((tag) => <Button key={tag} size="sm" variant={activeNoteTag === tag ? "secondary" : "ghost"} onClick={() => setNoteTag(tag)} aria-pressed={activeNoteTag === tag}>{tag}</Button>)}
           </div>
@@ -199,9 +199,9 @@ export function NavigationDashboard() {
                 [ids[currentIndex], ids[targetIndex]] = [ids[targetIndex], ids[currentIndex]];
                 void saveNoteOrder(ids).then(setNotes).catch((error) => toast.error(error instanceof Error ? error.message : "排序保存失败"));
               }} />)}</div>
-                : <Empty className="min-h-64 border border-dashed"><EmptyHeader><EmptyMedia variant="icon"><NotebookPen /></EmptyMedia><EmptyTitle>{notes.length ? "这个标签下还没有笔记" : "还没有笔记"}</EmptyTitle><EmptyDescription>{notes.length ? "选择其他标签，或为笔记添加这个标签。" : "把想法、清单或资料记下来，支持 Markdown 格式。"}</EmptyDescription></EmptyHeader><EmptyContent><Button variant="outline" onClick={() => setNoteEditor({ note: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />新建第一篇笔记</Button></EmptyContent></Empty>}
+                : <Empty className="min-h-52 border border-dashed"><EmptyHeader><EmptyMedia variant="icon"><NotebookPen /></EmptyMedia><EmptyTitle>{notes.length ? "这个标签下还没有笔记" : "还没有笔记"}</EmptyTitle><EmptyDescription>{notes.length ? "选择其他标签，或为笔记添加这个标签。" : "把想法、清单或资料记下来，支持 Markdown 格式。"}</EmptyDescription></EmptyHeader>{!notes.length && <EmptyContent><Button variant="outline" onClick={() => setNoteEditor({ note: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />新建第一篇笔记</Button></EmptyContent>}</Empty>}
           </div>
-        </div>}
+        </section>
       </section>
     </main>
 
@@ -219,7 +219,7 @@ export function NavigationDashboard() {
       notes={notes}
       onOpenChange={setGithubBackupOpen}
       onSettingsSaved={setGithubSettings}
-      onRestored={(restoredLinks, restoredNotes) => { setLinks(restoredLinks); setNotes(restoredNotes); setStatus("online"); setError(""); setCategory(DEFAULT); setView("links"); }}
+      onRestored={(restoredLinks, restoredNotes) => { setLinks(restoredLinks); setNotes(restoredNotes); setStatus("online"); setError(""); setCategory(DEFAULT); }}
     />
     {editor && <LinkEditor link={editor.link} onClose={() => setEditor(null)} onSaved={added} onDeleted={(id) => { setLinks((current) => current.filter((link) => link._id !== id)); }} />}
     {noteEditor && <NoteEditor note={noteEditor.note} onClose={() => setNoteEditor(null)} onSaved={(note) => { setNotes((current) => current.some((item) => item._id === note._id) ? current.map((item) => item._id === note._id ? note : item) : [...current, note]); }} onDeleted={(id) => { setNotes((current) => current.filter((note) => note._id !== id)); }} />}
