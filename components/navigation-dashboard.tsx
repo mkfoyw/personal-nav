@@ -25,6 +25,8 @@ import type { NavigationNote } from "@/lib/notes";
 
 const DEFAULT = "view:default";
 const ALL = "view:all";
+const NOTE_DEFAULT = "view:notes-default";
+const NOTE_ALL = "view:notes-all";
 
 function Greeting() {
   const [now, setNow] = useState<Date | null>(null);
@@ -45,7 +47,7 @@ function Greeting() {
 export function NavigationDashboard() {
   const [links, setLinks] = useState<NavigationLink[]>([]);
   const [notes, setNotes] = useState<NavigationNote[]>([]);
-  const [noteTag, setNoteTag] = useState("全部笔记");
+  const [noteTag, setNoteTag] = useState(NOTE_DEFAULT);
   const [status, setStatus] = useState<"loading" | "online" | "offline">("loading");
   const [error, setError] = useState("");
   const [category, setCategory] = useState(DEFAULT);
@@ -88,8 +90,8 @@ export function NavigationDashboard() {
   const activeCategory = tabs.some((tab) => tab.value === category) ? category : DEFAULT;
   const visible = links.filter((link) => activeCategory === ALL || (activeCategory === DEFAULT ? link.isDefault : link.categories.includes(activeCategory.slice(9))));
   const noteTags = [...new Set(notes.flatMap((note) => note.tags))];
-  const activeNoteTag = noteTags.includes(noteTag) || noteTag === "全部笔记" ? noteTag : "全部笔记";
-  const visibleNotes = notes.filter((note) => activeNoteTag === "全部笔记" || note.tags.includes(activeNoteTag));
+  const activeNoteTag = noteTag === NOTE_DEFAULT || noteTag === NOTE_ALL || (noteTag.startsWith("tag:") && noteTags.includes(noteTag.slice(4))) ? noteTag : NOTE_DEFAULT;
+  const visibleNotes = notes.filter((note) => activeNoteTag === NOTE_ALL || (activeNoteTag === NOTE_DEFAULT ? note.isDefault !== false : note.tags.includes(activeNoteTag.slice(4))));
 
   function added(link: NavigationLink) {
     save(link);
@@ -171,7 +173,7 @@ export function NavigationDashboard() {
           <div className="max-w-full pb-1"><TabsList variant="line" className="!h-auto w-full flex-wrap justify-start gap-2 py-1" aria-label="分类筛选">
             {tabs.map((tab) => <TabsTrigger className="h-9 flex-none rounded-lg border-border bg-background px-3 py-1.5 shadow-xs after:hidden hover:bg-muted/50 data-active:border-primary data-active:bg-primary/5 data-active:text-primary dark:data-active:border-primary dark:data-active:bg-primary/10" value={tab.value} key={tab.value}>{tab.value === DEFAULT && <LayoutGrid />}{tab.label}</TabsTrigger>)}
           </TabsList></div>
-          {tabs.map((tab) => <TabsContent key={tab.value} value={tab.value} className="min-h-[24rem]">
+          {tabs.map((tab) => <TabsContent key={tab.value} value={tab.value} className="min-h-[16rem]">
             <div aria-live="polite" aria-busy={status === "loading"}>
               {status === "loading" && !links.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="正在加载收藏">{Array.from({ length: 8 }, (_, index) => <Skeleton key={index} className="h-14 rounded-xl" />)}</div>
                 : visible.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">{visible.map((link) => <LinkCard key={link._id} link={link} onEdit={() => setEditor({ link })} editable={status === "online"} />)}</div>
@@ -189,7 +191,7 @@ export function NavigationDashboard() {
             <Button variant="outline" size="sm" onClick={() => setNoteEditor({ note: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />新建笔记</Button>
           </div>
           <div className="flex max-w-full flex-wrap gap-2" aria-label="笔记标签筛选">
-            {["全部笔记", ...noteTags].map((tag) => <Button key={tag} size="sm" variant="outline" className={`h-9 flex-none rounded-lg border-border bg-background px-3 py-1.5 shadow-xs after:hidden hover:bg-muted/50 ${activeNoteTag === tag ? "border-primary bg-primary/5 text-primary dark:bg-primary/10" : ""}`} onClick={() => setNoteTag(tag)} aria-pressed={activeNoteTag === tag}>{tag}</Button>)}
+            {[{ value: NOTE_DEFAULT, label: "默认分组" }, { value: NOTE_ALL, label: "全部笔记" }, ...noteTags.map((tag) => ({ value: `tag:${tag}`, label: tag }))].map((tab) => <Button key={tab.value} size="sm" variant="outline" className={`h-9 flex-none rounded-lg border-border bg-background px-3 py-1.5 shadow-xs after:hidden hover:bg-muted/50 ${activeNoteTag === tab.value ? "border-primary bg-primary/5 text-primary dark:bg-primary/10" : ""}`} onClick={() => setNoteTag(tab.value)} aria-pressed={activeNoteTag === tab.value}>{tab.label}</Button>)}
           </div>
           <div aria-live="polite" aria-busy={status === "loading"}>
             {status === "loading" && !notes.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="正在加载笔记">{Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-44 rounded-xl" />)}</div>

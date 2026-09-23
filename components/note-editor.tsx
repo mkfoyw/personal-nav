@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { createNote, deleteNote, updateNote } from "@/lib/indexed-db";
 import type { NavigationNote, NoteInput } from "@/lib/notes";
 
@@ -27,6 +28,7 @@ export function NoteEditor({ note, existingTags, onClose, onSaved, onDeleted }: 
   const [content, setContent] = useState(note?.content ?? "");
   const [tags, setTags] = useState(note?.tags ?? []);
   const [tagInput, setTagInput] = useState("");
+  const [isDefault, setIsDefault] = useState(note?.isDefault ?? true);
   const [preview, setPreview] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -52,7 +54,7 @@ export function NoteEditor({ note, existingTags, onClose, onSaved, onDeleted }: 
     setBusy(true);
     setError("");
     try {
-      const input: NoteInput = { title, content, tags };
+      const input: NoteInput = { title, content, tags, isDefault };
       const saved = note ? await updateNote(note._id, input) : await createNote(input);
       onSaved(saved);
       toast.success(note ? "笔记已更新" : "笔记已创建");
@@ -100,6 +102,13 @@ export function NoteEditor({ note, existingTags, onClose, onSaved, onDeleted }: 
               {existingTags.filter((tag) => !tags.includes(tag)).length > 0 && <div className="flex flex-wrap gap-1.5" aria-label="已有标签">
                 {existingTags.filter((tag) => !tags.includes(tag)).map((tag) => <Button key={tag} type="button" size="sm" variant="outline" className="h-7 rounded-full px-2.5 text-xs" onClick={() => addTag(tag)} disabled={busy}>{tag}</Button>)}
               </div>}
+            </Field>
+            <Field orientation="horizontal">
+              <div className="flex-1">
+                <FieldLabel htmlFor="note-default">显示在默认分组</FieldLabel>
+                <FieldDescription>打开笔记列表时，默认先显示这篇笔记。</FieldDescription>
+              </div>
+              <Switch id="note-default" checked={isDefault} onCheckedChange={setIsDefault} disabled={busy} />
             </Field>
             <Field>
               <div className="flex items-center justify-between gap-3">

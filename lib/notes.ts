@@ -2,6 +2,7 @@ export interface NoteInput {
   title: string;
   content: string;
   tags: string[];
+  isDefault: boolean;
 }
 
 export interface NavigationNote extends NoteInput {
@@ -31,5 +32,6 @@ export function normalizeNote(value: unknown): NoteInput {
   if (typeof tags !== "string" && !(Array.isArray(tags) && tags.every((tag) => typeof tag === "string"))) {
     throw new Error("标签格式无效");
   }
-  return { title: input.title.trim(), content, tags: parseNoteTags(tags as string | string[]) };
+  if (input.isDefault !== undefined && typeof input.isDefault !== "boolean") throw new Error("默认分组设置无效");
+  return { title: input.title.trim(), content, tags: parseNoteTags(tags as string | string[]), isDefault: input.isDefault !== false };
 }

@@ -3,7 +3,7 @@ import { mergeImportedLinks } from "@/lib/link-transfer";
 import { normalizeNote, type NavigationNote, type NoteInput } from "@/lib/notes";
 
 const DATABASE_NAME = "qidian-personal-nav";
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 const LINKS_STORE = "links";
 const NOTES_STORE = "notes";
 const META_STORE = "meta";
@@ -32,11 +32,20 @@ function transactionDone(transaction: IDBTransaction): Promise<void> {
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const database = request.result;
       if (!database.objectStoreNames.contains(LINKS_STORE)) database.createObjectStore(LINKS_STORE, { keyPath: "_id" });
       if (!database.objectStoreNames.contains(NOTES_STORE)) database.createObjectStore(NOTES_STORE, { keyPath: "_id" });
       if (!database.objectStoreNames.contains(META_STORE)) database.createObjectStore(META_STORE, { keyPath: "key" });
+      if (event.oldVersion < 3) {
+        const cursorRequest = request.transaction!.objectStore(NOTES_STORE).openCursor();
+        cursorRequest.onsuccess = () => {
+          const cursor = cursorRequest.result;
+          if (!cursor) return;
+          if (typeof cursor.value.isDefault !== "boolean") cursor.update({ ...cursor.value, isDefault: true });
+          cursor.continue();
+        };
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error || new Error("无法打开浏览器存储"));
