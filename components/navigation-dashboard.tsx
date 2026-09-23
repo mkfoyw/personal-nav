@@ -189,7 +189,7 @@ export function NavigationDashboard() {
             <Button variant="outline" size="sm" onClick={() => setNoteEditor({ note: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />新建笔记</Button>
           </div>
           <div className="flex max-w-full flex-wrap gap-2" aria-label="笔记标签筛选">
-            {["全部笔记", ...noteTags].map((tag) => <Button key={tag} size="sm" variant={activeNoteTag === tag ? "secondary" : "ghost"} onClick={() => setNoteTag(tag)} aria-pressed={activeNoteTag === tag}>{tag}</Button>)}
+            {["全部笔记", ...noteTags].map((tag) => <Button key={tag} size="sm" variant="outline" className={`h-9 flex-none rounded-lg border-border bg-background px-3 py-1.5 shadow-xs after:hidden hover:bg-muted/50 ${activeNoteTag === tag ? "border-primary bg-primary/5 text-primary dark:bg-primary/10" : ""}`} onClick={() => setNoteTag(tag)} aria-pressed={activeNoteTag === tag}>{tag}</Button>)}
           </div>
           <div aria-live="polite" aria-busy={status === "loading"}>
             {status === "loading" && !notes.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="正在加载笔记">{Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-44 rounded-xl" />)}</div>
