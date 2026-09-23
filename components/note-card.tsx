@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 import { ArrowDown, ArrowUp, Ellipsis } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { NavigationNote } from "@/lib/notes";
 
 interface Props {
@@ -43,7 +43,6 @@ export function NoteCard({ note, editable, first, last, onEdit, onMove }: Props)
       <DialogContent className="flex h-[min(82dvh,720px)] flex-col overflow-hidden sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="pr-8 text-xl">{note.title}</DialogTitle>
-          <DialogDescription>Markdown 笔记</DialogDescription>
         </DialogHeader>
         {note.tags.length > 0 && <div className="flex flex-wrap gap-1.5">{note.tags.map((tag) => <span key={tag} className="rounded-full bg-secondary px-2.5 py-1 text-xs text-secondary-foreground">{tag}</span>)}</div>}
         <div className="min-h-0 flex-1 overflow-y-auto pr-2">
