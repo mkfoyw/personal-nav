@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type KeyboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Loader2, Trash2 } from "lucide-react";
@@ -16,19 +16,35 @@ import type { NavigationNote, NoteInput } from "@/lib/notes";
 
 interface Props {
   note: NavigationNote | null;
+  existingTags: string[];
   onClose: () => void;
   onSaved: (note: NavigationNote) => void;
   onDeleted: (id: string) => void;
 }
 
-export function NoteEditor({ note, onClose, onSaved, onDeleted }: Props) {
+export function NoteEditor({ note, existingTags, onClose, onSaved, onDeleted }: Props) {
   const [title, setTitle] = useState(note?.title ?? "");
   const [content, setContent] = useState(note?.content ?? "");
-  const [tags, setTags] = useState(note?.tags.join("，") ?? "");
+  const [tags, setTags] = useState(note?.tags ?? []);
+  const [tagInput, setTagInput] = useState("");
   const [preview, setPreview] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  function addTag(value: string) {
+    const tag = value.trim();
+    if (!tag) return;
+    if (!tags.includes(tag)) setTags((current) => [...current, tag]);
+    setTagInput("");
+  }
+
+  function handleTagKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addTag(tagInput);
+    }
+  }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -36,7 +52,7 @@ export function NoteEditor({ note, onClose, onSaved, onDeleted }: Props) {
     setBusy(true);
     setError("");
     try {
-      const input: NoteInput = { title, content, tags: tags.split(/[,，、]/).map((tag) => tag.trim()).filter(Boolean) };
+      const input: NoteInput = { title, content, tags };
       const saved = note ? await updateNote(note._id, input) : await createNote(input);
       onSaved(saved);
       toast.success(note ? "笔记已更新" : "笔记已创建");
@@ -76,8 +92,14 @@ export function NoteEditor({ note, onClose, onSaved, onDeleted }: Props) {
             </Field>
             <Field>
               <FieldLabel htmlFor="note-tags">标签</FieldLabel>
-              <Input id="note-tags" value={tags} onChange={(event) => setTags(event.target.value)} placeholder="工作，灵感，待读" autoComplete="off" disabled={busy} />
-              <FieldDescription>用逗号分隔，笔记页可按标签筛选。</FieldDescription>
+              <div className="flex flex-wrap gap-1.5">
+                {tags.map((tag) => <button key={tag} type="button" className="rounded-full bg-secondary px-2.5 py-1 text-xs text-secondary-foreground hover:bg-accent" onClick={() => setTags((current) => current.filter((item) => item !== tag))} aria-label={`移除标签 ${tag}`} disabled={busy}>{tag}<span className="ml-1.5 opacity-60">×</span></button>)}
+              </div>
+              <Input id="note-tags" value={tagInput} onChange={(event) => setTagInput(event.target.value)} onKeyDown={handleTagKeyDown} placeholder="输入标签后按回车" autoComplete="off" disabled={busy} />
+              <FieldDescription>按回车添加新标签，或点击已有标签快速添加。</FieldDescription>
+              {existingTags.filter((tag) => !tags.includes(tag)).length > 0 && <div className="flex flex-wrap gap-1.5" aria-label="已有标签">
+                {existingTags.filter((tag) => !tags.includes(tag)).map((tag) => <Button key={tag} type="button" size="sm" variant="outline" className="h-7 rounded-full px-2.5 text-xs" onClick={() => addTag(tag)} disabled={busy}>{tag}</Button>)}
+              </div>}
             </Field>
             <Field>
               <div className="flex items-center justify-between gap-3">

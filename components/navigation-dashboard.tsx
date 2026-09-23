@@ -222,6 +222,6 @@ export function NavigationDashboard() {
       onRestored={(restoredLinks, restoredNotes) => { setLinks(restoredLinks); setNotes(restoredNotes); setStatus("online"); setError(""); setCategory(DEFAULT); }}
     />
     {editor && <LinkEditor link={editor.link} onClose={() => setEditor(null)} onSaved={added} onDeleted={(id) => { setLinks((current) => current.filter((link) => link._id !== id)); }} />}
-    {noteEditor && <NoteEditor note={noteEditor.note} onClose={() => setNoteEditor(null)} onSaved={(note) => { setNotes((current) => current.some((item) => item._id === note._id) ? current.map((item) => item._id === note._id ? note : item) : [...current, note]); }} onDeleted={(id) => { setNotes((current) => current.filter((note) => note._id !== id)); }} />}
+    {noteEditor && <NoteEditor note={noteEditor.note} existingTags={noteTags} onClose={() => setNoteEditor(null)} onSaved={(note) => { setNotes((current) => current.some((item) => item._id === note._id) ? current.map((item) => item._id === note._id ? note : item) : [...current, note]); }} onDeleted={(id) => { setNotes((current) => current.filter((note) => note._id !== id)); }} />}
   </div>;
 }
