@@ -40,13 +40,15 @@ export function NoteCard({ note, editable, first, last, onEdit, onMove }: Props)
     </CardContent>
     </Card>
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-h-[88dvh] overflow-y-auto sm:max-w-3xl">
+      <DialogContent className="flex h-[min(82dvh,720px)] flex-col overflow-hidden sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="pr-8 text-xl">{note.title}</DialogTitle>
           <DialogDescription>Markdown 笔记</DialogDescription>
         </DialogHeader>
         {note.tags.length > 0 && <div className="flex flex-wrap gap-1.5">{note.tags.map((tag) => <span key={tag} className="rounded-full bg-secondary px-2.5 py-1 text-xs text-secondary-foreground">{tag}</span>)}</div>}
-        {note.content ? <div className="markdown-content min-h-24"> <ReactMarkdown remarkPlugins={[remarkGfm]}>{note.content}</ReactMarkdown></div> : <p className="text-sm text-muted-foreground">还没有正文</p>}
+        <div className="min-h-0 flex-1 overflow-y-auto pr-2">
+          {note.content ? <div className="markdown-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{note.content}</ReactMarkdown></div> : <p className="text-sm text-muted-foreground">还没有正文</p>}
+        </div>
         {editable && <div className="flex justify-end"><Button variant="outline" onClick={edit}>编辑笔记</Button></div>}
       </DialogContent>
     </Dialog>
