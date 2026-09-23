@@ -143,6 +143,7 @@
 .markdown-content th, .markdown-content td { border: 1px solid var(--border); padding: 0.4em 0.65em; text-align: left; }
 .markdown-content th { background: var(--muted); font-weight: 600; }
 .markdown-content input[type="checkbox"] { margin-right: 0.4em; accent-color: var(--primary); }
+.note-preview { max-height: 9rem; overflow: hidden; mask-image: linear-gradient(to bottom, #000 78%, transparent); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }

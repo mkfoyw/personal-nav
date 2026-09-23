@@ -149,7 +149,10 @@ export function NavigationDashboard() {
               <DropdownMenuItem disabled={status !== "online"} onSelect={() => setGithubBackupOpen(true)}><Cloud />GitHub 私有备份</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button size="lg" onClick={() => setEditor({ link: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />添加链接</Button>
+          <div className="flex items-center gap-2">
+            <Button size="lg" onClick={() => setEditor({ link: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />添加链接</Button>
+            <Button size="lg" variant="outline" onClick={() => setNoteEditor({ note: null })} disabled={status !== "online"}><NotebookPen data-icon="inline-start" />添加笔记</Button>
+          </div>
         </div>
       </div>
     </header>
