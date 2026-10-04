@@ -114,8 +114,14 @@
 .theme-sun { display: none; }
 .dark .theme-sun { display: block; }
 .dark .theme-moon { display: none; }
-.navigation-card { min-height: 56px; transition: transform 180ms ease, box-shadow 180ms ease; }
-.navigation-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px color-mix(in srgb, var(--foreground), transparent 95%); }
+.navigation-card { min-height: 72px; box-shadow: 0 0 0 1px color-mix(in srgb, var(--border), transparent 35%); transition: background-color 180ms ease, box-shadow 180ms ease; }
+.navigation-card:hover { background-color: color-mix(in srgb, var(--card), var(--primary) 4%); box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary), transparent 60%); }
+.link-monogram { display: grid; place-items: center; flex-shrink: 0; width: 34px; height: 34px; border-radius: 10px; background: color-mix(in srgb, var(--primary), transparent 91%); color: var(--primary); font-size: 14px; font-weight: 600; }
+.link-edit { transition: opacity 180ms ease, color 180ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .link-edit { opacity: 0; }
+  .navigation-card:hover .link-edit, .navigation-card:focus-within .link-edit { opacity: 1; }
+}
 .card-destination { overflow-wrap: anywhere; }
 .card-destination::after { content: ""; position: absolute; inset: 0; }
 .card-destination:focus-visible { outline: none; }
