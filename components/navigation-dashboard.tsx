@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useTheme } from "next-themes";
-import { Bookmark, Check, CircleAlert, Compass, Database, Download, Cloud, LayoutGrid, Moon, NotebookPen, Plus, RefreshCw, Sun, Upload } from "lucide-react";
+import { Bookmark, Check, CircleAlert, Compass, Database, Download, Cloud, CodeXml, LayoutGrid, Moon, NotebookPen, Plus, RefreshCw, Sun, Upload } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -212,7 +212,10 @@ export function NavigationDashboard() {
       <Separator className="mb-6" />
       <div className="flex flex-col justify-between gap-3 text-xs text-muted-foreground sm:flex-row sm:items-center">
         <span className="flex items-center gap-2">{status === "online" ? <Check className="size-3 text-primary" /> : <span className="size-1.5 rounded-full bg-muted-foreground" />}{status === "online" ? "数据已保存在此浏览器 · IndexedDB" : status === "loading" ? "正在打开浏览器存储" : "浏览器存储不可用"}</span>
-        <span className="text-[10px] tracking-[0.18em]">A PLACE FOR YOUR EVERYDAY INTERNET.</span>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+          <span className="text-[10px] tracking-[0.18em]">A PLACE FOR YOUR EVERYDAY INTERNET.</span>
+          <a href="https://github.com/mkfoyw/personal-nav" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 py-1 transition-colors hover:text-foreground" aria-label="在新标签页打开 personal-nav 的 GitHub 仓库"><CodeXml className="size-3.5" aria-hidden="true" />GitHub</a>
+        </div>
       </div>
     </footer>
     <GitHubBackupDialog
