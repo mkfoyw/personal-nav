@@ -19,6 +19,22 @@ make run
 
 直接打开 Sites 地址即可使用。数据属于当前浏览器和当前站点来源；更换浏览器、设备或清除网站数据前，请先使用页面顶部的数据菜单导出 JSON 备份。
 
+## GitHub Pages 部署
+
+在仓库的 **Settings → Pages → Build and deployment → Source** 中选择 **GitHub Actions**。
+推送到 `main` 后，工作流会自动检查、构建并发布；也可以在 Actions 中手动运行 `Deploy to GitHub Pages`。
+
+默认访问地址：https://mkfoyw.github.io/personal-nav/
+
+本地验证 Pages 静态构建：
+
+```sh
+GITHUB_PAGES=1 PAGES_BASE_PATH=/personal-nav npm run build
+```
+
+静态产物位于 `out/`。部署时会根据 Pages 配置自动设置站点路径，支持项目子路径和自定义域名。
+从 Sites 切换到 GitHub Pages 时，先在原站导出 JSON，再在新站导入；浏览器数据不会跨站点自动迁移。
+
 ## 生产运行与检查
 
 ```sh

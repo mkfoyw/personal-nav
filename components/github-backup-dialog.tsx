@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -23,21 +23,17 @@ interface Props {
   onRestored: (links: NavigationLink[], notes: NavigationNote[]) => void;
 }
 
-export function GitHubBackupDialog({ open, settings, links, notes, onOpenChange, onSettingsSaved, onRestored }: Props) {
-  const [repository, setRepository] = useState("");
-  const [branch, setBranch] = useState("main");
-  const [token, setToken] = useState("");
+export function GitHubBackupDialog(props: Props) {
+  return <GitHubBackupDialogContent key={String(props.open)} {...props} />;
+}
+
+function GitHubBackupDialogContent({ open, settings, links, notes, onOpenChange, onSettingsSaved, onRestored }: Props) {
+  const [repository, setRepository] = useState(settings?.repository ?? "");
+  const [branch, setBranch] = useState(settings?.branch || "main");
+  const [token, setToken] = useState(settings?.token ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirmRestore, setConfirmRestore] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    setRepository(settings?.repository ?? "");
-    setBranch(settings?.branch || "main");
-    setToken(settings?.token ?? "");
-    setError("");
-  }, [open, settings]);
 
   function currentSettings(): GitHubBackupSettings {
     const normalized = { repository: repository.trim(), branch: branch.trim(), token: token.trim() };
