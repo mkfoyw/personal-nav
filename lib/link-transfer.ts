@@ -10,20 +10,23 @@ export interface LinkExport {
   exportedAt: string;
   links: NavigationLink[];
   notes: NavigationNote[];
+  categoryOrder?: string[];
 }
 
 export interface LibraryImport {
   links: NavigationLink[];
   notes: NavigationNote[];
+  categoryOrder?: string[];
 }
 
-export function createLinkExport(links: NavigationLink[], notes: NavigationNote[] = []): LinkExport {
+export function createLinkExport(links: NavigationLink[], notes: NavigationNote[] = [], categoryOrder: string[] = []): LinkExport {
   return {
     format: EXPORT_FORMAT,
     version: EXPORT_VERSION,
     exportedAt: new Date().toISOString(),
     links,
     notes,
+    categoryOrder,
   };
 }
 
@@ -84,7 +87,12 @@ export function parseLibraryImport(value: unknown): LibraryImport {
       throw new Error(`第 ${index + 1} 篇笔记无效：${error instanceof Error ? error.message : "格式错误"}`);
     }
   });
-  return { links, notes };
+  const rawOrder = value && typeof value === "object" && !Array.isArray(value)
+    ? (value as { categoryOrder?: unknown }).categoryOrder : undefined;
+  if (rawOrder !== undefined && (!Array.isArray(rawOrder) || rawOrder.some((name) => typeof name !== "string" || !name.trim() || name.length > 30))) {
+    throw new Error("备份中的分组顺序格式无效");
+  }
+  return { links, notes, ...(rawOrder === undefined ? {} : { categoryOrder: [...new Set(rawOrder as string[])] }) };
 }
 
 export function mergeImportedLinks(current: NavigationLink[], imported: NavigationLink[]): NavigationLink[] {

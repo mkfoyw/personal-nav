@@ -110,6 +110,9 @@
 }
 
 .page-shell { background: radial-gradient(ellipse at 20% 5%, color-mix(in srgb, var(--primary), transparent 96%), transparent 45%); }
+.category-tab[data-drop-side]::before { content: ""; position: absolute; top: 4px; bottom: 4px; width: 2px; border-radius: 2px; background: var(--primary); pointer-events: none; }
+.category-tab[data-drop-side="before"]::before { left: -5px; }
+.category-tab[data-drop-side="after"]::before { right: -5px; }
 .brand-symbol { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--border); border-radius: 12px; color: var(--primary); }
 .theme-sun { display: none; }
 .dark .theme-sun { display: block; }

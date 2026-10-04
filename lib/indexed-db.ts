@@ -8,6 +8,24 @@ const LINKS_STORE = "links";
 const NOTES_STORE = "notes";
 const META_STORE = "meta";
 
+export async function getCategoryOrder(): Promise<string[]> {
+  const database = await openDatabase();
+  try {
+    const row = await requestResult(database.transaction(META_STORE).objectStore(META_STORE).get("category-order") as IDBRequest<{ value: unknown } | undefined>);
+    return Array.isArray(row?.value) ? row.value.filter((name): name is string => typeof name === "string") : [];
+  } finally { database.close(); }
+}
+
+export async function saveCategoryOrder(names: string[]): Promise<void> {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(META_STORE, "readwrite");
+    const done = transactionDone(transaction);
+    transaction.objectStore(META_STORE).put({ key: "category-order", value: [...new Set(names)] });
+    await done;
+  } finally { database.close(); }
+}
+
 export interface GitHubBackupSettings {
   repository: string;
   branch: string;
@@ -190,7 +208,7 @@ export async function replaceLinks(links: NavigationLink[]): Promise<void> {
   } finally { database.close(); }
 }
 
-export async function replaceLibraryData(links: NavigationLink[], notes: NavigationNote[]): Promise<void> {
+export async function replaceLibraryData(links: NavigationLink[], notes: NavigationNote[], categoryOrder?: string[]): Promise<void> {
   const database = await openDatabase();
   try {
     const transaction = database.transaction([LINKS_STORE, NOTES_STORE, META_STORE], "readwrite");
@@ -200,6 +218,7 @@ export async function replaceLibraryData(links: NavigationLink[], notes: Navigat
     noteStore.clear();
     for (const link of links) linkStore.put(link);
     for (const note of notes) noteStore.put(note);
+    if (categoryOrder !== undefined) transaction.objectStore(META_STORE).put({ key: "category-order", value: categoryOrder });
     transaction.objectStore(META_STORE).put({ key: "initialized", value: true });
     await transactionDone(transaction);
   } finally { database.close(); }

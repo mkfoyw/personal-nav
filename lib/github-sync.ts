@@ -63,13 +63,13 @@ function encodeBase64(text: string) {
   return btoa(binary);
 }
 
-export async function uploadLinksToGitHub(settings: GitHubBackupSettings, links: NavigationLink[], notes: NavigationNote[]) {
+export async function uploadLinksToGitHub(settings: GitHubBackupSettings, links: NavigationLink[], notes: NavigationNote[], categoryOrder: string[] = []) {
   const repository = await validatePrivateRepository(settings);
   const existing = await getBackupFile(settings, repository);
   const url = `${API}/repos/${repository}/contents/${BACKUP_FILE}`;
   const body = {
     message: "Update Qidian navigation backup",
-    content: encodeBase64(JSON.stringify(createLinkExport(links, notes), null, 2)),
+    content: encodeBase64(JSON.stringify(createLinkExport(links, notes, categoryOrder), null, 2)),
     branch: settings.branch,
     ...(existing ? { sha: existing.sha } : {}),
   };

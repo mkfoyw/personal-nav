@@ -18,16 +18,17 @@ interface Props {
   settings: GitHubBackupSettings | null;
   links: NavigationLink[];
   notes: NavigationNote[];
+  categoryOrder: string[];
   onOpenChange: (open: boolean) => void;
   onSettingsSaved: (settings: GitHubBackupSettings | null) => void;
-  onRestored: (links: NavigationLink[], notes: NavigationNote[]) => void;
+  onRestored: (links: NavigationLink[], notes: NavigationNote[], categoryOrder?: string[]) => void;
 }
 
 export function GitHubBackupDialog(props: Props) {
   return <GitHubBackupDialogContent key={String(props.open)} {...props} />;
 }
 
-function GitHubBackupDialogContent({ open, settings, links, notes, onOpenChange, onSettingsSaved, onRestored }: Props) {
+function GitHubBackupDialogContent({ open, settings, links, notes, categoryOrder, onOpenChange, onSettingsSaved, onRestored }: Props) {
   const [repository, setRepository] = useState(settings?.repository ?? "");
   const [branch, setBranch] = useState(settings?.branch || "main");
   const [token, setToken] = useState(settings?.token ?? "");
@@ -79,7 +80,7 @@ function GitHubBackupDialogContent({ open, settings, links, notes, onOpenChange,
     setError("");
     try {
       const value = await persistSettings();
-      await uploadLinksToGitHub(value, links, notes);
+      await uploadLinksToGitHub(value, links, notes, categoryOrder);
       toast.success(`已同步 ${links.length} 个链接和 ${notes.length} 篇笔记到 GitHub`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "同步失败，请稍后重试");
@@ -93,8 +94,8 @@ function GitHubBackupDialogContent({ open, settings, links, notes, onOpenChange,
     try {
       const value = await persistSettings();
       const restored = await downloadLinksFromGitHub(value);
-      await replaceLibraryData(restored.links, restored.notes);
-      onRestored(restored.links, restored.notes);
+      await replaceLibraryData(restored.links, restored.notes, restored.categoryOrder);
+      onRestored(restored.links, restored.notes, restored.categoryOrder);
       toast.success(`已从 GitHub 恢复 ${restored.links.length} 个链接和 ${restored.notes.length} 篇笔记`);
       onOpenChange(false);
     } catch (cause) {
@@ -107,7 +108,7 @@ function GitHubBackupDialogContent({ open, settings, links, notes, onOpenChange,
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>GitHub 私有备份</DialogTitle>
-          <DialogDescription>把当前浏览器的链接和 Markdown 笔记保存到你的私有仓库，也可以从仓库恢复。</DialogDescription>
+          <DialogDescription>把当前浏览器的链接、分组顺序和 Markdown 笔记保存到你的私有仓库，也可以从仓库恢复。</DialogDescription>
         </DialogHeader>
         <FieldGroup>
           <Field>
@@ -127,7 +128,7 @@ function GitHubBackupDialogContent({ open, settings, links, notes, onOpenChange,
             </FieldDescription>
           </Field>
         </FieldGroup>
-        <p className="text-xs text-muted-foreground">备份文件：<span className="font-mono">qidian-navigation-backup.json</span>。恢复会替换当前浏览器的链接和笔记。</p>
+        <p className="text-xs text-muted-foreground">备份文件：<span className="font-mono">qidian-navigation-backup.json</span>。恢复会替换当前浏览器的链接、笔记和备份中的分组顺序。</p>
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
         <DialogFooter className="-mx-4 -mb-4 flex-col-reverse sm:flex-row sm:justify-between">
           <div className="flex flex-wrap gap-2">

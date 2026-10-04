@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeLink, parseCategories } from "../lib/links";
-import { createLinkExport, mergeImportedLinks, parseLinkImport } from "../lib/link-transfer";
+import { createLinkExport, mergeImportedLinks, parseLibraryImport, parseLinkImport } from "../lib/link-transfer";
 import type { NavigationLink } from "../lib/links";
 
 const valid = { title: "测试", url: "https://example.com", categories: ["开发"] };
@@ -48,4 +48,15 @@ test("import rejects malformed rows and merges duplicate URLs", () => {
   assert.equal(merged.length, 1);
   assert.equal(merged[0]._id, "current");
   assert.equal(merged[0].title, "新名称");
+});
+
+
+test("category order round-trips through backups and accepts legacy backups", () => {
+  const order = ["编程", "交易所", "新分类"];
+  assert.deepEqual(parseLibraryImport(createLinkExport([], [], order)).categoryOrder, order);
+  assert.equal(parseLibraryImport({ links: [] }).categoryOrder, undefined);
+  assert.deepEqual(parseLibraryImport({ links: [], categoryOrder: ["编程", "编程", "新分类"] }).categoryOrder, ["编程", "新分类"]);
+  for (const categoryOrder of ["编程", [7], [""], ["a".repeat(31)]]) {
+    assert.throws(() => parseLibraryImport({ links: [], categoryOrder }));
+  }
 });

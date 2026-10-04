@@ -12,13 +12,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { insertCategory } from "@/lib/category-order";
 import { LinkCard } from "@/components/link-card";
 import { LinkEditor } from "@/components/link-editor";
 import { NoteCard } from "@/components/note-card";
 import { NoteEditor } from "@/components/note-editor";
 import { GitHubBackupDialog } from "@/components/github-backup-dialog";
 import { useWebMcp } from "@/hooks/use-web-mcp";
-import { getGitHubBackupSettings, initializeLinks, listNotes, replaceLibraryData, saveNoteOrder, type GitHubBackupSettings } from "@/lib/indexed-db";
+import { getCategoryOrder, saveCategoryOrder, getGitHubBackupSettings, initializeLinks, listNotes, replaceLibraryData, saveNoteOrder, type GitHubBackupSettings } from "@/lib/indexed-db";
 import { createLinkExport, mergeImportedLinks, mergeImportedNotes, parseLibraryImport } from "@/lib/link-transfer";
 import type { NavigationLink } from "@/lib/links";
 import type { NavigationNote } from "@/lib/notes";
@@ -51,6 +52,11 @@ export function NavigationDashboard() {
   const [status, setStatus] = useState<"loading" | "online" | "offline">("loading");
   const [error, setError] = useState("");
   const [category, setCategory] = useState(DEFAULT);
+  const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
+  const [sortingBusy, setSortingBusy] = useState(false);
+  const appendAttempt = useRef("");
+  const draggedCategory = useRef<string | null>(null);
+  const [dropCategory, setDropCategory] = useState<{ name: string; side: "before" | "after" } | null>(null);
   const [editor, setEditor] = useState<{ link: NavigationLink | null } | null>(null);
   const [noteEditor, setNoteEditor] = useState<{ note: NavigationNote | null } | null>(null);
   const [githubBackupOpen, setGithubBackupOpen] = useState(false);
@@ -61,17 +67,18 @@ export function NavigationDashboard() {
 
   const load = useCallback(async () => {
     try {
-      const [savedLinks, savedNotes, savedGitHubSettings] = await Promise.all([initializeLinks(), listNotes(), getGitHubBackupSettings()]);
+      const [savedLinks, savedNotes, savedGitHubSettings, savedCategoryOrder] = await Promise.all([initializeLinks(), listNotes(), getGitHubBackupSettings(), getCategoryOrder()]);
       setLinks(savedLinks);
       setNotes(savedNotes);
       setGithubSettings(savedGitHubSettings);
+      setCategoryOrder(savedCategoryOrder);
       setStatus("online");
       setError("");
     } catch (error) {
       setStatus("offline");
       setError(error instanceof Error ? error.message : "无法打开浏览器存储，请稍后重试。");
     }
-  }, []);
+  }, [setLinks, setNotes, setGithubSettings, setCategoryOrder, setStatus, setError]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
@@ -85,7 +92,38 @@ export function NavigationDashboard() {
   }, []);
   useWebMcp(links, status === "online", save);
 
-  const categories = [...new Set(links.flatMap((link) => link.categories))];
+  const availableCategories = [...new Set(links.flatMap((link) => link.categories))];
+  const categories = [...categoryOrder.filter((name) => availableCategories.includes(name)), ...availableCategories.filter((name) => !categoryOrder.includes(name))];
+  useEffect(() => {
+    if (status !== "online" || sortingBusy) return;
+    const missing = [...new Set(links.flatMap((link) => link.categories))].filter((name) => !categoryOrder.includes(name));
+    if (!missing.length) return;
+    const attempt = JSON.stringify([categoryOrder, missing]);
+    if (appendAttempt.current === attempt) return;
+    const timer = window.setTimeout(() => {
+      appendAttempt.current = attempt;
+      setSortingBusy(true);
+      const next = [...categoryOrder, ...missing];
+      void saveCategoryOrder(next).then(() => setCategoryOrder(next)).catch(() => toast.error("新分组顺序保存失败")).finally(() => setSortingBusy(false));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [links, categoryOrder, status, sortingBusy]);
+
+  async function dropGroup(target: string, side: "before" | "after") {
+    const source = draggedCategory.current;
+    draggedCategory.current = null;
+    setDropCategory(null);
+    if (!source || source === target || sortingBusy) return;
+    const next = insertCategory(categories, source, target, side);
+    if (next.every((name, index) => name === categories[index])) return;
+    setSortingBusy(true);
+    try {
+      await saveCategoryOrder(next);
+      setCategoryOrder(next);
+    } catch { toast.error("分组顺序保存失败，请重试"); }
+    finally { setSortingBusy(false); }
+  }
+
   const tabs = [{ value: DEFAULT, label: "默认分组" }, { value: ALL, label: "全部收藏" }, ...categories.map((name) => ({ value: `category:${name}`, label: name }))];
   const activeCategory = tabs.some((tab) => tab.value === category) ? category : DEFAULT;
   const visible = links.filter((link) => activeCategory === ALL || (activeCategory === DEFAULT ? link.isDefault : link.categories.includes(activeCategory.slice(9))));
@@ -109,7 +147,9 @@ export function NavigationDashboard() {
       const hasOnlyStarterLinks = links.every((link) => link._id.startsWith("starter-"));
       const nextLinks = hasOnlyStarterLinks ? imported.links : mergeImportedLinks(links, imported.links);
       const nextNotes = hasOnlyStarterLinks && notes.length === 0 ? imported.notes : mergeImportedNotes(notes, imported.notes);
-      await replaceLibraryData(nextLinks, nextNotes);
+      const nextCategoryOrder = imported.categoryOrder === undefined ? categoryOrder : [...imported.categoryOrder, ...categoryOrder.filter((name) => !imported.categoryOrder!.includes(name))];
+      await replaceLibraryData(nextLinks, nextNotes, nextCategoryOrder);
+      setCategoryOrder(nextCategoryOrder);
       setLinks(nextLinks);
       setNotes(nextNotes);
       setStatus("online");
@@ -122,7 +162,7 @@ export function NavigationDashboard() {
 
   function exportData() {
     try {
-      const content = JSON.stringify(createLinkExport(links, notes), null, 2);
+      const content = JSON.stringify(createLinkExport(links, notes, categories), null, 2);
       const url = URL.createObjectURL(new Blob([content], { type: "application/json;charset=utf-8" }));
       const anchor = document.createElement("a");
       anchor.href = url;
@@ -171,8 +211,16 @@ export function NavigationDashboard() {
 
         <Tabs value={activeCategory} onValueChange={setCategory} className="gap-7">
           <div className="max-w-full pb-1"><TabsList variant="line" className="!h-auto w-full flex-wrap justify-start gap-2 py-1" aria-label="分类筛选">
-            {tabs.map((tab) => <TabsTrigger className="h-9 flex-none rounded-lg border-border bg-background px-3 py-1.5 shadow-xs after:hidden hover:bg-muted/50 data-active:border-primary data-active:bg-primary/5 data-active:text-primary dark:data-active:border-primary dark:data-active:bg-primary/10" value={tab.value} key={tab.value}>{tab.value === DEFAULT && <LayoutGrid />}{tab.label}</TabsTrigger>)}
-          </TabsList></div>
+            {tabs.map((tab) => <TabsTrigger draggable={tab.value.startsWith("category:") && status === "online" && !sortingBusy}
+              onDragStart={(event) => { if (!tab.value.startsWith("category:")) return; draggedCategory.current = tab.label; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", tab.label); }}
+              onDragOver={(event) => { if (!draggedCategory.current || !tab.value.startsWith("category:") || sortingBusy) return; event.preventDefault(); event.dataTransfer.dropEffect = "move"; const bounds = event.currentTarget.getBoundingClientRect(); setDropCategory({ name: tab.label, side: event.clientX < bounds.left + bounds.width / 2 ? "before" : "after" }); }}
+              onDrop={(event) => { if (!draggedCategory.current || !tab.value.startsWith("category:")) return; event.preventDefault(); const bounds = event.currentTarget.getBoundingClientRect(); void dropGroup(tab.label, event.clientX < bounds.left + bounds.width / 2 ? "before" : "after"); }}
+              onDragEnd={() => { draggedCategory.current = null; setDropCategory(null); }}
+              onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropCategory(null); }}
+              data-drop-side={dropCategory?.name === tab.label ? dropCategory.side : undefined}
+              className="category-tab h-9 flex-none rounded-lg border-border bg-background px-3 py-1.5 shadow-xs after:hidden hover:bg-muted/50 data-active:border-primary data-active:bg-primary/5 data-active:text-primary dark:data-active:border-primary dark:data-active:bg-primary/10" value={tab.value} key={tab.value}>{tab.value === DEFAULT && <LayoutGrid />}{tab.label}</TabsTrigger>)}
+          </TabsList>
+          </div>
           {tabs.map((tab) => <TabsContent key={tab.value} value={tab.value} className="min-h-[16rem]">
             <div aria-live="polite" aria-busy={status === "loading"}>
               {status === "loading" && !links.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="正在加载收藏">{Array.from({ length: 8 }, (_, index) => <Skeleton key={index} className="h-14 rounded-xl" />)}</div>
@@ -223,11 +271,12 @@ export function NavigationDashboard() {
       settings={githubSettings}
       links={links}
       notes={notes}
+      categoryOrder={categories}
       onOpenChange={setGithubBackupOpen}
       onSettingsSaved={setGithubSettings}
-      onRestored={(restoredLinks, restoredNotes) => { setLinks(restoredLinks); setNotes(restoredNotes); setStatus("online"); setError(""); setCategory(DEFAULT); }}
+      onRestored={(restoredLinks, restoredNotes, restoredOrder) => { if (restoredOrder !== undefined) setCategoryOrder(restoredOrder); setLinks(restoredLinks); setNotes(restoredNotes); setStatus("online"); setError(""); setCategory(DEFAULT); }}
     />
-    {editor && <LinkEditor link={editor.link} onClose={() => setEditor(null)} onSaved={added} onDeleted={(id) => { setLinks((current) => current.filter((link) => link._id !== id)); }} />}
+    {editor && <LinkEditor link={editor.link} availableCategories={categories} onClose={() => setEditor(null)} onSaved={added} onDeleted={(id) => { setLinks((current) => current.filter((link) => link._id !== id)); }} />}
     {noteEditor && <NoteEditor note={noteEditor.note} existingTags={noteTags} onClose={() => setNoteEditor(null)} onSaved={(note) => { setNotes((current) => current.some((item) => item._id === note._id) ? current.map((item) => item._id === note._id ? note : item) : [...current, note]); }} onDeleted={(id) => { setNotes((current) => current.filter((note) => note._id !== id)); }} />}
   </div>;
 }

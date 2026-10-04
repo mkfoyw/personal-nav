@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { Check, Loader2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,21 +11,46 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createLink, deleteLink, updateLink } from "@/lib/indexed-db";
-import { normalizeLink, type NavigationLink } from "@/lib/links";
+import { normalizeLink, parseCategories, type NavigationLink } from "@/lib/links";
 
 interface Props {
   link: NavigationLink | null;
+  availableCategories: string[];
   onClose: () => void;
   onSaved: (link: NavigationLink) => void;
   onDeleted: (id: string) => void;
 }
 
-export function LinkEditor({ link, onClose, onSaved, onDeleted }: Props) {
+export function LinkEditor({ link, availableCategories, onClose, onSaved, onDeleted }: Props) {
   const [isDefault, setIsDefault] = useState(link?.isDefault ?? true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [categoriesError, setCategoriesError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(link?.categories ?? []);
+  const [categoryInput, setCategoryInput] = useState("");
+  const suggestions = availableCategories.filter((name) => name.toLocaleLowerCase().includes(categoryInput.trim().toLocaleLowerCase()));
+
+  function toggleCategory(name: string) {
+    setCategoriesError("");
+    if (selectedCategories.includes(name)) {
+      setSelectedCategories(selectedCategories.filter((item) => item !== name));
+    } else if (selectedCategories.length >= 10) {
+      setCategoriesError("最多选择 10 个分类");
+    } else {
+      setSelectedCategories([...selectedCategories, name]);
+      setCategoryInput("");
+    }
+  }
+
+  function addCategory() {
+    if (!categoryInput.trim()) return;
+    try {
+      setSelectedCategories(parseCategories([...selectedCategories, ...parseCategories(categoryInput)]));
+      setCategoryInput("");
+      setCategoriesError("");
+    } catch (error) { setCategoriesError(error instanceof Error ? error.message : "分类格式无效"); }
+  }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -35,7 +60,8 @@ export function LinkEditor({ link, onClose, onSaved, onDeleted }: Props) {
     const fields = new FormData(event.currentTarget);
     let input;
     try {
-      input = normalizeLink({ title: fields.get("title"), url: fields.get("url"), categories: fields.get("categories"), note: fields.get("note"), isDefault });
+      const categories = categoryInput.trim() ? [...selectedCategories, ...parseCategories(categoryInput)] : selectedCategories;
+      input = normalizeLink({ title: fields.get("title"), url: fields.get("url"), categories, note: fields.get("note"), isDefault });
     } catch (error) {
       const message = error instanceof Error ? error.message : "请检查输入内容";
       if (message.includes("分类")) setCategoriesError(message);
@@ -87,9 +113,16 @@ export function LinkEditor({ link, onClose, onSaved, onDeleted }: Props) {
               </Field>
               <Field data-invalid={Boolean(categoriesError)}>
                 <FieldLabel htmlFor="link-categories">分类</FieldLabel>
-                <Input id="link-categories" name="categories" defaultValue={link?.categories.join("，")} placeholder="效率，AI 工具" aria-invalid={Boolean(categoriesError)} aria-describedby="category-help" />
-                <FieldDescription id="category-help">用逗号分隔，最多 10 个。</FieldDescription>
-                {categoriesError && <FieldError>{categoriesError}</FieldError>}
+                {selectedCategories.length > 0 && <div className="flex flex-wrap gap-1.5" aria-label="已选分类">
+                  {selectedCategories.map((name) => <button key={name} type="button" onClick={() => toggleCategory(name)} className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-primary/10 px-2.5 py-1.5 text-xs text-primary focus-visible:outline-2 focus-visible:outline-ring" aria-label={`移除分类 ${name}`}><span className="truncate">{name}</span><X className="size-3 shrink-0" aria-hidden="true" /></button>)}
+                </div>}
+                <Input id="link-categories" value={categoryInput} onChange={(event) => { setCategoryInput(event.target.value); setCategoriesError(""); }} placeholder="输入分类，按空格添加" autoComplete="off" aria-invalid={Boolean(categoriesError)} aria-describedby={categoriesError ? "category-error" : undefined} onKeyDown={(event) => {
+                  if ((event.key === " " || event.key === "Enter") && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) { event.preventDefault(); addCategory(); }
+                }} />
+                {suggestions.length > 0 && <div className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto" role="group" aria-label="已有分类">
+                  {suggestions.map((name) => <button type="button" key={name} aria-pressed={selectedCategories.includes(name)} disabled={!selectedCategories.includes(name) && selectedCategories.length >= 10} onClick={() => toggleCategory(name)} className="inline-flex max-w-full items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted aria-pressed:border-primary/40 aria-pressed:text-primary disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-ring">{selectedCategories.includes(name) && <Check className="size-3 shrink-0" aria-hidden="true" />}<span className="truncate">{name}</span></button>)}
+                </div>}
+                {categoriesError && <FieldError id="category-error">{categoriesError}</FieldError>}
               </Field>
               <Field>
                 <FieldLabel htmlFor="link-note">备注（选填）</FieldLabel>
