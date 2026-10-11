@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createLinkExport, parseLibraryImport } from "../lib/link-transfer";
 import { createSharedSalt, encryptText } from "../lib/encryption";
+import { rotateEncryptedNotes } from "../lib/note-key-rotation";
 import { NOTE_ALL_VIEW, NOTE_DEFAULT_VIEW, NOTE_ENCRYPTED_VIEW, notesForView, protectNote, sharedSaltForNotes, unlockNote, type NavigationNote, type NoteInput } from "../lib/notes";
 
 const date = "2026-10-12T00:00:00.000Z";
@@ -77,4 +78,46 @@ test("legacy encrypted notes remain readable and can be converted to the shared 
   assert.equal(migrated.encrypted?.version, 2);
   assert.deepEqual(await unlockNote(migrated, "new shared password"), privateInput);
   await assert.rejects(unlockNote(migrated, "old private password"), /密码错误/);
+});
+
+test("rotates every shared-key note together and preserves ordinary notes", async () => {
+  const oldPassword = "current shared password";
+  const newPassword = "a completely new shared password";
+  const oldSalt = createSharedSalt();
+  const first: NavigationNote = { ...await protectNote(privateInput, oldPassword, "one", oldSalt), _id: "one", order: 1, createdAt: date, updatedAt: date };
+  const secondInput = { ...privateInput, title: "另一篇私密笔记" };
+  const second: NavigationNote = { ...await protectNote(secondInput, oldPassword, "two", oldSalt), _id: "two", order: 2, createdAt: date, updatedAt: date };
+  const ordinary: NavigationNote = { ...plainInput, _id: "plain", order: 3, createdAt: date, updatedAt: date };
+  const original = [first, second, ordinary];
+  const originalSnapshot = JSON.stringify(original);
+
+  const rotated = await rotateEncryptedNotes(original, oldPassword, newPassword, "2026-10-13T00:00:00.000Z");
+  assert.equal(rotated.length, 3);
+  assert.deepEqual(rotated[2], ordinary);
+  assert.equal(rotated[0].encrypted?.version, 2);
+  assert.equal(rotated[1].encrypted?.version, 2);
+  assert.notEqual(sharedSaltForNotes(rotated), oldSalt);
+  assert.notEqual(rotated[0].encrypted?.iv, rotated[1].encrypted?.iv);
+  assert.deepEqual(await unlockNote(rotated[0], newPassword), privateInput);
+  assert.deepEqual(await unlockNote(rotated[1], newPassword), secondInput);
+  await assert.rejects(unlockNote(rotated[0], oldPassword), /密码错误/);
+  await assert.rejects(unlockNote(rotated[1], oldPassword), /密码错误/);
+  assert.equal(rotated[0]._id, first._id);
+  assert.equal(rotated[0].order, first.order);
+  assert.equal(rotated[0].createdAt, first.createdAt);
+  assert.equal(rotated[0].updatedAt, "2026-10-13T00:00:00.000Z");
+  assert.equal(JSON.stringify(original), originalSnapshot);
+
+  const backup = JSON.stringify(createLinkExport([], rotated));
+  assert.equal(backup.includes(privateInput.title), false);
+  assert.equal(backup.includes(secondInput.title), false);
+  assert.equal(backup.includes(ordinary.title), true);
+});
+
+test("rotation rejects incorrect credentials before returning any replacement notes", async () => {
+  const salt = createSharedSalt();
+  const note: NavigationNote = { ...await protectNote(privateInput, "current shared password", "one", salt), _id: "one", order: 1, createdAt: date, updatedAt: date };
+  await assert.rejects(rotateEncryptedNotes([note], "incorrect password", "a new long password"), /当前共用密码错误/);
+  await assert.rejects(rotateEncryptedNotes([note], "current shared password", "current shared password"), /不能与当前/);
+  assert.deepEqual(await unlockNote(note, "current shared password"), privateInput);
 });

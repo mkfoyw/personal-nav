@@ -18,6 +18,7 @@ import { LinkEditor } from "@/components/link-editor";
 import { NoteCard } from "@/components/note-card";
 import { NoteEditor } from "@/components/note-editor";
 import { NoteVaultDialog } from "@/components/note-vault-dialog";
+import { NoteKeyRotationDialog } from "@/components/note-key-rotation-dialog";
 import { GitHubBackupDialog } from "@/components/github-backup-dialog";
 import { useWebMcp } from "@/hooks/use-web-mcp";
 import { getCategoryOrder, saveCategoryOrder, getGitHubBackupSettings, initializeLinks, listNotes, replaceLibraryData, saveNoteOrder, type GitHubBackupSettings } from "@/lib/indexed-db";
@@ -60,6 +61,7 @@ export function NavigationDashboard() {
   const [noteEditor, setNoteEditor] = useState<{ note: NavigationNote | null; startProtected?: boolean; initialUnlock?: { input: NoteInput; password?: string } } | null>(null);
   const [vaultPassword, setVaultPassword] = useState<string | null>(null);
   const [vaultDialogOpen, setVaultDialogOpen] = useState(false);
+  const [rotationDialogOpen, setRotationDialogOpen] = useState(false);
   const [vaultSession, setVaultSession] = useState(0);
   const [githubBackupOpen, setGithubBackupOpen] = useState(false);
   const [githubSettings, setGithubSettings] = useState<GitHubBackupSettings | null>(null);
@@ -156,6 +158,7 @@ export function NavigationDashboard() {
       setNotes(nextNotes);
       setVaultPassword(null);
       setVaultDialogOpen(false);
+      setRotationDialogOpen(false);
       setVaultSession((current) => current + 1);
       setNoteEditor(null);
       setStatus("online");
@@ -247,7 +250,7 @@ export function NavigationDashboard() {
           </Tabs>
           {activeNoteTag === NOTE_ENCRYPTED_VIEW && status === "online" && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3">
             <div className="flex items-center gap-2 text-sm"><LockKeyhole className="size-4 text-primary" /><span>{vaultPassword ? "加密笔记已解锁，本页无需逐篇输入密码。" : notes.some((note) => note.encrypted?.version === 2) ? "解锁一次，即可查看和编辑所有新版加密笔记。" : "设置一个共用密码，用于所有新加密笔记。"}</span></div>
-            <div className="flex gap-2">{vaultPassword ? <><Button size="sm" variant="outline" onClick={() => { setVaultPassword(null); setVaultSession((current) => current + 1); setNoteEditor(null); }}>锁定</Button><Button size="sm" onClick={() => setNoteEditor({ note: null, startProtected: true })}><Plus data-icon="inline-start" />添加加密笔记</Button></> : <Button size="sm" onClick={() => setVaultDialogOpen(true)}>{notes.some((note) => note.encrypted?.version === 2) ? "解锁加密笔记" : "设置共用密码"}</Button>}</div>
+            <div className="flex flex-wrap gap-2">{vaultPassword ? <>{notes.some((note) => note.encrypted?.version === 2) && <Button size="sm" variant="outline" onClick={() => setRotationDialogOpen(true)}>更换共用密码</Button>}<Button size="sm" variant="outline" onClick={() => { setVaultPassword(null); setVaultSession((current) => current + 1); setNoteEditor(null); }}>锁定</Button><Button size="sm" onClick={() => setNoteEditor({ note: null, startProtected: true })}><Plus data-icon="inline-start" />添加加密笔记</Button></> : <Button size="sm" onClick={() => setVaultDialogOpen(true)}>{notes.some((note) => note.encrypted?.version === 2) ? "解锁加密笔记" : "设置共用密码"}</Button>}</div>
           </div>}
           <div aria-live="polite" aria-busy={status === "loading"}>
             {status === "loading" && !notes.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="正在加载笔记">{Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-44 rounded-xl" />)}</div>
@@ -284,9 +287,10 @@ export function NavigationDashboard() {
       categoryOrder={categories}
       onOpenChange={setGithubBackupOpen}
       onSettingsSaved={setGithubSettings}
-      onRestored={(restoredLinks, restoredNotes, restoredOrder) => { if (restoredOrder !== undefined) setCategoryOrder(restoredOrder); setLinks(restoredLinks); setNotes(restoredNotes); setVaultPassword(null); setVaultSession((current) => current + 1); setNoteEditor(null); setVaultDialogOpen(false); setStatus("online"); setError(""); setCategory(DEFAULT); }}
+      onRestored={(restoredLinks, restoredNotes, restoredOrder) => { if (restoredOrder !== undefined) setCategoryOrder(restoredOrder); setLinks(restoredLinks); setNotes(restoredNotes); setVaultPassword(null); setVaultSession((current) => current + 1); setNoteEditor(null); setVaultDialogOpen(false); setRotationDialogOpen(false); setStatus("online"); setError(""); setCategory(DEFAULT); }}
     />
     <NoteVaultDialog open={vaultDialogOpen} notes={notes} onOpenChange={setVaultDialogOpen} onUnlocked={setVaultPassword} />
+    <NoteKeyRotationDialog open={rotationDialogOpen} notes={notes} currentPassword={vaultPassword ?? ""} onOpenChange={setRotationDialogOpen} onRotated={(rotated, password) => { setNotes(rotated); setVaultPassword(password); setVaultSession((current) => current + 1); setNoteEditor(null); }} />
     {editor && <LinkEditor link={editor.link} availableCategories={categories} onClose={() => setEditor(null)} onSaved={added} onDeleted={(id) => { setLinks((current) => current.filter((link) => link._id !== id)); }} />}
     {noteEditor && <NoteEditor note={noteEditor.note} startProtected={noteEditor.startProtected} vaultPassword={vaultPassword} onRequireVault={() => setVaultDialogOpen(true)} initialUnlock={noteEditor.initialUnlock} existingTags={noteTags} onClose={() => setNoteEditor(null)} onSaved={(note) => { setNotes((current) => current.some((item) => item._id === note._id) ? current.map((item) => item._id === note._id ? note : item) : [...current, note]); if (note.encrypted) setNoteTag(NOTE_ENCRYPTED_VIEW); else if (noteEditor.note?.encrypted) setNoteTag(note.isDefault ? NOTE_DEFAULT_VIEW : NOTE_ALL_VIEW); }} onDeleted={(id) => { setNotes((current) => current.filter((note) => note._id !== id)); }} />}
   </div>;

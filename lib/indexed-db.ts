@@ -2,6 +2,7 @@ import { defaultLinks, normalizeLink, type LinkInput, type NavigationLink } from
 import { mergeImportedLinks } from "@/lib/link-transfer";
 import { normalizeNote, protectNote, sharedSaltForNotes, unlockNote, type NavigationNote, type NoteInput } from "@/lib/notes";
 import { createSharedSalt } from "@/lib/encryption";
+import { rotateEncryptedNotes } from "@/lib/note-key-rotation";
 
 const DATABASE_NAME = "qidian-personal-nav";
 const DATABASE_VERSION = 3;
@@ -207,6 +208,32 @@ export async function deleteNote(id: string): Promise<void> {
   const database = await openDatabase();
   try { await requestResult(database.transaction(NOTES_STORE, "readwrite").objectStore(NOTES_STORE).delete(id)); }
   finally { database.close(); }
+}
+
+export async function rotateNoteKey(currentPassword: string, newPassword: string): Promise<NavigationNote[]> {
+  const original = await listNotes();
+  const rotated = await rotateEncryptedNotes(original, currentPassword, newPassword);
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(NOTES_STORE, "readwrite");
+    const done = transactionDone(transaction);
+    const store = transaction.objectStore(NOTES_STORE);
+    try {
+      const latest = await requestResult(store.getAll() as IDBRequest<NavigationNote[]>);
+      const originalById = new Map(original.map((note) => [note._id, JSON.stringify(note)]));
+      if (latest.length !== original.length || latest.some((note) => originalById.get(note._id) !== JSON.stringify(note))) {
+        await done;
+        throw new Error("笔记已在其他页面更新，请重新打开后重试");
+      }
+      for (const note of rotated) if (note.encrypted) store.put(note);
+      await done;
+      return rotated;
+    } catch (error) {
+      try { transaction.abort(); } catch { /* Already completed or aborted. */ }
+      await done.catch(() => {});
+      throw error;
+    }
+  } finally { database.close(); }
 }
 
 export async function saveNoteOrder(ids: string[]): Promise<NavigationNote[]> {
