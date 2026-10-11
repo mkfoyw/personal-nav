@@ -101,6 +101,7 @@
     }
   html {
     @apply font-sans;
+    scroll-snap-type: y proximity;
     }
 }
 @layer base {

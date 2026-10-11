@@ -184,7 +184,7 @@ export function NavigationDashboard() {
 
   return <div className="page-shell flex min-h-dvh flex-col">
     <a href="#main" className="skip-link">跳转到收藏</a>
-    <header className="border-b border-border/70">
+    <header className="snap-start border-b border-border/70">
       <div className="mx-auto flex h-20 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
         <Link href="/" className="flex items-center gap-3" aria-label="栖点首页"><span className="brand-symbol"><Compass className="size-5" strokeWidth={1.5} /></span><span className="text-lg font-semibold tracking-[0.14em]">栖点</span><span className="ml-2 hidden text-[10px] tracking-[0.2em] text-muted-foreground sm:inline">YOUR LITTLE CORNER</span></Link>
         <div className="flex items-center gap-3">
@@ -201,18 +201,17 @@ export function NavigationDashboard() {
             </DropdownMenuContent>
           </DropdownMenu>
           <div className="flex items-center gap-2">
-            <Button size="lg" onClick={() => setEditor({ link: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />添加链接</Button>
-            <Button size="lg" variant="outline" onClick={() => setNoteEditor({ note: null })} disabled={status !== "online"}><NotebookPen data-icon="inline-start" />添加笔记</Button>
+            <Button size="lg" aria-label="添加链接" title="添加链接" onClick={() => setEditor({ link: null })} disabled={status !== "online"}><Plus data-icon="inline-start" /><span className="hidden sm:inline">添加链接</span></Button>
+            <Button size="lg" variant="outline" aria-label="添加笔记" title="添加笔记" onClick={() => setNoteEditor({ note: null })} disabled={status !== "online"}><NotebookPen data-icon="inline-start" /><span className="hidden sm:inline">添加笔记</span></Button>
           </div>
         </div>
       </div>
     </header>
 
-    <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-5 pt-12 pb-20 sm:px-8 sm:pt-20">
-      <section className="mb-12 sm:mb-14" aria-label="欢迎回来">
+    <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-5 sm:px-8">
+      <section aria-label="收藏导航" className="flex min-h-[calc(100svh-5rem)] flex-col gap-[clamp(1.5rem,4vh,3.5rem)] pt-[clamp(2.5rem,7vh,4.5rem)] pb-[clamp(1.5rem,5vh,5rem)]">
         <Greeting />
-      </section>
-      <section aria-label="收藏导航" className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6">
         {status === "offline" && <Alert>
           <CircleAlert /><AlertTitle>浏览器存储暂时不可用</AlertTitle>
           <AlertDescription><p>{error}</p><Button variant="outline" size="sm" onClick={() => { setStatus("loading"); setError(""); void load(); }}><RefreshCw data-icon="inline-start" />重新尝试</Button></AlertDescription>
@@ -241,8 +240,10 @@ export function NavigationDashboard() {
             </div>
           </TabsContent>)}
         </Tabs>
+        </div>
+      </section>
 
-        <section aria-label="笔记" className="flex flex-col gap-5 border-t border-border/70 pt-7 sm:pt-9">
+      <section id="notes" aria-label="笔记" className="flex min-h-svh snap-start flex-col gap-5 border-t border-border/70 pt-8 pb-20 sm:pt-10">
           <Tabs value={activeNoteTag} onValueChange={setNoteTag}>
             <TabsList variant="line" className="!h-auto w-full flex-wrap justify-start gap-2 py-1" aria-label="笔记标签筛选">
               {[{ value: NOTE_DEFAULT_VIEW, label: "默认分组" }, { value: NOTE_ALL_VIEW, label: "全部笔记" }, { value: NOTE_ENCRYPTED_VIEW, label: "加密笔记" }, ...noteTags.map((tag) => ({ value: `tag:${tag}`, label: tag }))].map((tab) => <TabsTrigger className="h-9 flex-none rounded-lg border-border bg-background px-3 py-1.5 shadow-xs after:hidden hover:bg-muted/50 data-active:border-primary data-active:bg-primary/5 data-active:text-primary dark:data-active:border-primary dark:data-active:bg-primary/10" value={tab.value} key={tab.value}>{tab.value === NOTE_ENCRYPTED_VIEW && <LockKeyhole className="size-4" />}{tab.label}</TabsTrigger>)}
@@ -265,7 +266,6 @@ export function NavigationDashboard() {
               }} />)}</div>
                 : <Empty className="min-h-52 border border-dashed"><EmptyHeader><EmptyMedia variant="icon">{activeNoteTag === NOTE_ENCRYPTED_VIEW ? <LockKeyhole /> : <NotebookPen />}</EmptyMedia><EmptyTitle>{activeNoteTag === NOTE_ENCRYPTED_VIEW ? "还没有加密笔记" : notes.length ? "这个分组下还没有笔记" : "还没有笔记"}</EmptyTitle><EmptyDescription>{activeNoteTag === NOTE_ENCRYPTED_VIEW ? "设置共用密码后，即可在此添加加密笔记。" : notes.length ? "选择其他分组，或为笔记添加标签。" : "把想法、清单或资料记下来，支持 Markdown 格式。"}</EmptyDescription></EmptyHeader>{!notes.length && activeNoteTag !== NOTE_ENCRYPTED_VIEW && <EmptyContent><Button variant="outline" onClick={() => setNoteEditor({ note: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />新建第一篇笔记</Button></EmptyContent>}</Empty>}
           </div>
-        </section>
       </section>
     </main>
 
