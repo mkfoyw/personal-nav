@@ -17,6 +17,7 @@ import { LinkCard } from "@/components/link-card";
 import { LinkEditor } from "@/components/link-editor";
 import { NoteCard } from "@/components/note-card";
 import { NoteEditor } from "@/components/note-editor";
+import { NoteVaultDialog } from "@/components/note-vault-dialog";
 import { GitHubBackupDialog } from "@/components/github-backup-dialog";
 import { useWebMcp } from "@/hooks/use-web-mcp";
 import { getCategoryOrder, saveCategoryOrder, getGitHubBackupSettings, initializeLinks, listNotes, replaceLibraryData, saveNoteOrder, type GitHubBackupSettings } from "@/lib/indexed-db";
@@ -56,7 +57,10 @@ export function NavigationDashboard() {
   const draggedCategory = useRef<string | null>(null);
   const [dropCategory, setDropCategory] = useState<{ name: string; side: "before" | "after" } | null>(null);
   const [editor, setEditor] = useState<{ link: NavigationLink | null } | null>(null);
-  const [noteEditor, setNoteEditor] = useState<{ note: NavigationNote | null; initialUnlock?: { input: NoteInput; password: string } } | null>(null);
+  const [noteEditor, setNoteEditor] = useState<{ note: NavigationNote | null; startProtected?: boolean; initialUnlock?: { input: NoteInput; password?: string } } | null>(null);
+  const [vaultPassword, setVaultPassword] = useState<string | null>(null);
+  const [vaultDialogOpen, setVaultDialogOpen] = useState(false);
+  const [vaultSession, setVaultSession] = useState(0);
   const [githubBackupOpen, setGithubBackupOpen] = useState(false);
   const [githubSettings, setGithubSettings] = useState<GitHubBackupSettings | null>(null);
   const [transferBusy, setTransferBusy] = useState(false);
@@ -150,6 +154,10 @@ export function NavigationDashboard() {
       setCategoryOrder(nextCategoryOrder);
       setLinks(nextLinks);
       setNotes(nextNotes);
+      setVaultPassword(null);
+      setVaultDialogOpen(false);
+      setVaultSession((current) => current + 1);
+      setNoteEditor(null);
       setStatus("online");
       setError("");
       toast.success(`已导入 ${imported.links.length} 个链接和 ${imported.notes.length} 篇笔记`);
@@ -237,9 +245,13 @@ export function NavigationDashboard() {
               {[{ value: NOTE_DEFAULT_VIEW, label: "默认分组" }, { value: NOTE_ALL_VIEW, label: "全部笔记" }, { value: NOTE_ENCRYPTED_VIEW, label: "加密笔记" }, ...noteTags.map((tag) => ({ value: `tag:${tag}`, label: tag }))].map((tab) => <TabsTrigger className="h-9 flex-none rounded-lg border-border bg-background px-3 py-1.5 shadow-xs after:hidden hover:bg-muted/50 data-active:border-primary data-active:bg-primary/5 data-active:text-primary dark:data-active:border-primary dark:data-active:bg-primary/10" value={tab.value} key={tab.value}>{tab.value === NOTE_ENCRYPTED_VIEW && <LockKeyhole className="size-4" />}{tab.label}</TabsTrigger>)}
             </TabsList>
           </Tabs>
+          {activeNoteTag === NOTE_ENCRYPTED_VIEW && status === "online" && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3">
+            <div className="flex items-center gap-2 text-sm"><LockKeyhole className="size-4 text-primary" /><span>{vaultPassword ? "加密笔记已解锁，本页无需逐篇输入密码。" : notes.some((note) => note.encrypted?.version === 2) ? "解锁一次，即可查看和编辑所有新版加密笔记。" : "设置一个共用密码，用于所有新加密笔记。"}</span></div>
+            <div className="flex gap-2">{vaultPassword ? <><Button size="sm" variant="outline" onClick={() => { setVaultPassword(null); setVaultSession((current) => current + 1); setNoteEditor(null); }}>锁定</Button><Button size="sm" onClick={() => setNoteEditor({ note: null, startProtected: true })}><Plus data-icon="inline-start" />添加加密笔记</Button></> : <Button size="sm" onClick={() => setVaultDialogOpen(true)}>{notes.some((note) => note.encrypted?.version === 2) ? "解锁加密笔记" : "设置共用密码"}</Button>}</div>
+          </div>}
           <div aria-live="polite" aria-busy={status === "loading"}>
             {status === "loading" && !notes.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="正在加载笔记">{Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-44 rounded-xl" />)}</div>
-              : visibleNotes.length ? <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">{visibleNotes.map((note, index) => <NoteCard key={note._id} note={note} editable={status === "online"} first={index === 0} last={index === visibleNotes.length - 1} onEdit={(initialUnlock) => setNoteEditor({ note, initialUnlock })} onMove={(direction) => {
+              : visibleNotes.length ? <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">{visibleNotes.map((note, index) => <NoteCard key={`${note._id}:${vaultSession}`} note={note} editable={status === "online"} first={index === 0} last={index === visibleNotes.length - 1} vaultPassword={vaultPassword} onRequireVault={() => setVaultDialogOpen(true)} onEdit={(initialUnlock) => setNoteEditor({ note, initialUnlock })} onMove={(direction) => {
                 const target = index + direction;
                 if (target < 0 || target >= visibleNotes.length) return;
                 const ids = notes.map((item) => item._id);
@@ -248,7 +260,7 @@ export function NavigationDashboard() {
                 [ids[currentIndex], ids[targetIndex]] = [ids[targetIndex], ids[currentIndex]];
                 void saveNoteOrder(ids).then(setNotes).catch((error) => toast.error(error instanceof Error ? error.message : "排序保存失败"));
               }} />)}</div>
-                : <Empty className="min-h-52 border border-dashed"><EmptyHeader><EmptyMedia variant="icon">{activeNoteTag === NOTE_ENCRYPTED_VIEW ? <LockKeyhole /> : <NotebookPen />}</EmptyMedia><EmptyTitle>{activeNoteTag === NOTE_ENCRYPTED_VIEW ? "还没有加密笔记" : notes.length ? "这个分组下还没有笔记" : "还没有笔记"}</EmptyTitle><EmptyDescription>{activeNoteTag === NOTE_ENCRYPTED_VIEW ? "编辑笔记时开启加密，它就会显示在这里。" : notes.length ? "选择其他分组，或为笔记添加标签。" : "把想法、清单或资料记下来，支持 Markdown 格式。"}</EmptyDescription></EmptyHeader>{!notes.length && activeNoteTag !== NOTE_ENCRYPTED_VIEW && <EmptyContent><Button variant="outline" onClick={() => setNoteEditor({ note: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />新建第一篇笔记</Button></EmptyContent>}</Empty>}
+                : <Empty className="min-h-52 border border-dashed"><EmptyHeader><EmptyMedia variant="icon">{activeNoteTag === NOTE_ENCRYPTED_VIEW ? <LockKeyhole /> : <NotebookPen />}</EmptyMedia><EmptyTitle>{activeNoteTag === NOTE_ENCRYPTED_VIEW ? "还没有加密笔记" : notes.length ? "这个分组下还没有笔记" : "还没有笔记"}</EmptyTitle><EmptyDescription>{activeNoteTag === NOTE_ENCRYPTED_VIEW ? "设置共用密码后，即可在此添加加密笔记。" : notes.length ? "选择其他分组，或为笔记添加标签。" : "把想法、清单或资料记下来，支持 Markdown 格式。"}</EmptyDescription></EmptyHeader>{!notes.length && activeNoteTag !== NOTE_ENCRYPTED_VIEW && <EmptyContent><Button variant="outline" onClick={() => setNoteEditor({ note: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />新建第一篇笔记</Button></EmptyContent>}</Empty>}
           </div>
         </section>
       </section>
@@ -272,9 +284,10 @@ export function NavigationDashboard() {
       categoryOrder={categories}
       onOpenChange={setGithubBackupOpen}
       onSettingsSaved={setGithubSettings}
-      onRestored={(restoredLinks, restoredNotes, restoredOrder) => { if (restoredOrder !== undefined) setCategoryOrder(restoredOrder); setLinks(restoredLinks); setNotes(restoredNotes); setStatus("online"); setError(""); setCategory(DEFAULT); }}
+      onRestored={(restoredLinks, restoredNotes, restoredOrder) => { if (restoredOrder !== undefined) setCategoryOrder(restoredOrder); setLinks(restoredLinks); setNotes(restoredNotes); setVaultPassword(null); setVaultSession((current) => current + 1); setNoteEditor(null); setVaultDialogOpen(false); setStatus("online"); setError(""); setCategory(DEFAULT); }}
     />
+    <NoteVaultDialog open={vaultDialogOpen} notes={notes} onOpenChange={setVaultDialogOpen} onUnlocked={setVaultPassword} />
     {editor && <LinkEditor link={editor.link} availableCategories={categories} onClose={() => setEditor(null)} onSaved={added} onDeleted={(id) => { setLinks((current) => current.filter((link) => link._id !== id)); }} />}
-    {noteEditor && <NoteEditor note={noteEditor.note} hasSharedKey={notes.some((note) => note.encrypted?.version === 2)} initialUnlock={noteEditor.initialUnlock} existingTags={noteTags} onClose={() => setNoteEditor(null)} onSaved={(note) => { setNotes((current) => current.some((item) => item._id === note._id) ? current.map((item) => item._id === note._id ? note : item) : [...current, note]); if (note.encrypted) setNoteTag(NOTE_ENCRYPTED_VIEW); else if (noteEditor.note?.encrypted) setNoteTag(note.isDefault ? NOTE_DEFAULT_VIEW : NOTE_ALL_VIEW); }} onDeleted={(id) => { setNotes((current) => current.filter((note) => note._id !== id)); }} />}
+    {noteEditor && <NoteEditor note={noteEditor.note} startProtected={noteEditor.startProtected} vaultPassword={vaultPassword} onRequireVault={() => setVaultDialogOpen(true)} initialUnlock={noteEditor.initialUnlock} existingTags={noteTags} onClose={() => setNoteEditor(null)} onSaved={(note) => { setNotes((current) => current.some((item) => item._id === note._id) ? current.map((item) => item._id === note._id ? note : item) : [...current, note]); if (note.encrypted) setNoteTag(NOTE_ENCRYPTED_VIEW); else if (noteEditor.note?.encrypted) setNoteTag(note.isDefault ? NOTE_DEFAULT_VIEW : NOTE_ALL_VIEW); }} onDeleted={(id) => { setNotes((current) => current.filter((note) => note._id !== id)); }} />}
   </div>;
 }

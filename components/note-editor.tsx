@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Loader2, LockKeyhole, Trash2 } from "lucide-react";
@@ -14,22 +14,23 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { createNote, deleteNote, updateNote } from "@/lib/indexed-db";
 import { unlockNote, type NavigationNote, type NoteInput } from "@/lib/notes";
-import { offerToSaveNotePassword, SHARED_NOTE_CREDENTIAL } from "@/lib/password-manager";
 
 interface Props {
   note: NavigationNote | null;
-  hasSharedKey: boolean;
-  initialUnlock?: { input: NoteInput; password: string };
+  startProtected?: boolean;
+  vaultPassword: string | null;
+  onRequireVault: () => void;
+  initialUnlock?: { input: NoteInput; password?: string };
   existingTags: string[];
   onClose: () => void;
   onSaved: (note: NavigationNote) => void;
   onDeleted: (id: string) => void;
 }
 
-export function NoteEditor({ note, hasSharedKey, initialUnlock, existingTags, onClose, onSaved, onDeleted }: Props) {
+export function NoteEditor({ note, startProtected, vaultPassword, onRequireVault, initialUnlock, existingTags, onClose, onSaved, onDeleted }: Props) {
   const [draftId] = useState(() => crypto.randomUUID());
   const [locked, setLocked] = useState(Boolean(note?.encrypted && !initialUnlock));
-  const [protectedNote, setProtectedNote] = useState(Boolean(note?.encrypted));
+  const [protectedNote, setProtectedNote] = useState(Boolean(note?.encrypted || startProtected));
   const [password, setPassword] = useState(initialUnlock?.password ?? "");
   const [title, setTitle] = useState(initialUnlock?.input.title ?? (note?.encrypted ? "" : note?.title ?? ""));
   const [content, setContent] = useState(initialUnlock?.input.content ?? (note?.encrypted ? "" : note?.content ?? ""));
@@ -41,7 +42,16 @@ export function NoteEditor({ note, hasSharedKey, initialUnlock, existingTags, on
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isLegacyNote = note?.encrypted?.version === 1;
-  const unlockCredential = isLegacyNote ? `qidian-note:${note._id}` : SHARED_NOTE_CREDENTIAL;
+
+  useEffect(() => {
+    if (note?.encrypted?.version !== 2 || !vaultPassword || !locked) return;
+    let cancelled = false;
+    void unlockNote(note, vaultPassword).then((input) => {
+      if (cancelled) return;
+      setTitle(input.title); setContent(input.content); setTags(input.tags); setIsDefault(input.isDefault); setLocked(false); setError("");
+    }).catch((cause) => { if (!cancelled) setError(cause instanceof Error ? cause.message : "解锁失败"); });
+    return () => { cancelled = true; };
+  }, [note, vaultPassword, locked]);
 
   async function unlock(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -78,19 +88,14 @@ export function NoteEditor({ note, hasSharedKey, initialUnlock, existingTags, on
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
-    const formData = new FormData(event.currentTarget);
     setBusy(true);
     setError("");
     try {
-      const savePassword = note?.encrypted ? password : String(formData.get("password") ?? "");
-      const sharedPassword = isLegacyNote && hasSharedKey ? String(formData.get("shared-password") ?? "") : undefined;
-      if (protectedNote && !note?.encrypted && !hasSharedKey && savePassword !== formData.get("password-confirm")) throw new Error("两次输入的密码不一致");
-      if (protectedNote && savePassword.length < 12) throw new Error("密码至少需要 12 个字符");
+      if (protectedNote && !vaultPassword) throw new Error("请先设置或解锁共用密码");
       const input: NoteInput = { title, content, tags, isDefault };
       const saved = note
-        ? await updateNote(note._id, input, protectedNote ? savePassword : note.encrypted ? null : undefined, protectedNote ? sharedPassword : undefined)
-        : await createNote(input, protectedNote ? savePassword : undefined, draftId);
-      if (protectedNote && !hasSharedKey) void offerToSaveNotePassword(savePassword);
+        ? await updateNote(note._id, input, protectedNote ? isLegacyNote ? password : vaultPassword! : note.encrypted ? null : undefined, protectedNote && isLegacyNote ? vaultPassword! : undefined)
+        : await createNote(input, protectedNote ? vaultPassword! : undefined, draftId);
       onSaved(saved);
       toast.success(note ? "笔记已更新" : "笔记已创建");
       onClose();
@@ -119,31 +124,22 @@ export function NoteEditor({ note, hasSharedKey, initialUnlock, existingTags, on
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl" showCloseButton={!busy}>
         <DialogHeader>
           <DialogTitle>{locked ? "解锁笔记" : note ? "编辑笔记" : "新建笔记"}</DialogTitle>
-          <DialogDescription>{locked ? isLegacyNote ? "这篇旧版笔记需要原密码；保存时会迁移到共用密钥。" : "输入加密笔记的共用密码后查看和编辑。" : "正文支持 Markdown，可预览常用排版、链接、任务列表和表格。"}</DialogDescription>
+          <DialogDescription>{locked ? isLegacyNote ? "这篇旧版笔记需要原密码；保存时会迁移到共用密钥。" : "先解锁加密笔记分组，即可查看和编辑。" : "正文支持 Markdown，可预览常用排版、链接、任务列表和表格。"}</DialogDescription>
         </DialogHeader>
-        {locked ? <form onSubmit={unlock} className="flex flex-col gap-4">
-          <input id="note-unlock-username" className="sr-only" name="username" autoComplete="username" readOnly value={unlockCredential} tabIndex={-1} aria-hidden="true" />
-          <Field><FieldLabel htmlFor="note-unlock-password">{isLegacyNote ? "旧笔记密码" : "共用密码"}</FieldLabel><Input id="note-unlock-password" name="password" type="password" autoComplete="current-password" required disabled={busy} />{!isLegacyNote && <FieldDescription>在浏览器密码管理器中选择 {SHARED_NOTE_CREDENTIAL}，不要选择 GitHub 令牌。</FieldDescription>}</Field>
+        {locked && !isLegacyNote ? <div className="flex flex-col gap-4"><p className="text-sm text-muted-foreground">{vaultPassword ? "正在解锁…" : "输入一次共用密码，本页就能编辑所有新版加密笔记。"}</p>{error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}<DialogFooter><Button type="button" variant="outline" onClick={onClose}>取消</Button>{!vaultPassword && <Button type="button" onClick={onRequireVault}>解锁加密笔记</Button>}</DialogFooter></div> : locked ? <form onSubmit={unlock} className="flex flex-col gap-4">
+          <input id="note-unlock-username" className="sr-only" name="username" autoComplete="username" readOnly value={`qidian-note:${note?._id}`} tabIndex={-1} aria-hidden="true" />
+          <Field><FieldLabel htmlFor="note-unlock-password">旧笔记密码</FieldLabel><Input id="note-unlock-password" name="password" type="password" autoComplete="current-password" required disabled={busy} /></Field>
           {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
           <DialogFooter><Button type="button" variant="outline" onClick={onClose} disabled={busy}>取消</Button><Button type="submit" disabled={busy}>{busy ? "正在解锁…" : "解锁"}</Button></DialogFooter>
         </form> : <form onSubmit={save} className="flex flex-col gap-5">
           <FieldGroup>
             <Field orientation="horizontal">
               <div className="flex-1"><FieldLabel htmlFor="note-protected">加密这篇笔记</FieldLabel><FieldDescription>仅这篇笔记的标题、标签和正文会加密；新备份中也保持密文。旧备份不会自动改写，忘记密码后无法恢复。</FieldDescription></div>
-              <Switch id="note-protected" checked={protectedNote} onCheckedChange={setProtectedNote} disabled={busy} />
+              <Switch id="note-protected" checked={protectedNote} onCheckedChange={(checked) => { setProtectedNote(checked); if (checked && !vaultPassword) onRequireVault(); }} disabled={busy} />
             </Field>
             {protectedNote && <Field>
-              <input id="note-credential-username" className="sr-only" name="username" autoComplete="username" readOnly value={SHARED_NOTE_CREDENTIAL} tabIndex={-1} aria-hidden="true" />
-              {note?.encrypted ? isLegacyNote ? <>
-                <FieldDescription>这篇旧版笔记已解锁。保存后会改用加密笔记的共用密钥。</FieldDescription>
-                {hasSharedKey && <><FieldLabel htmlFor="note-shared-password">共用密码</FieldLabel><Input id="note-shared-password" name="shared-password" type="password" autoComplete="current-password" required disabled={busy} /></>}
-                {!hasSharedKey && <FieldDescription>原密码将成为共用密码。其他旧版加密笔记需要逐篇打开并保存以迁移。</FieldDescription>}
-              </> : <FieldDescription className="flex items-center gap-2"><LockKeyhole className="size-4" />已用共用密码解锁；保存后继续使用同一密钥。</FieldDescription> : <>
-                <FieldLabel htmlFor="note-password">{hasSharedKey ? "共用密码" : "设置加密笔记共用密码"}</FieldLabel>
-                <Input id="note-password" name="password" type="password" autoComplete={hasSharedKey ? "current-password" : "new-password"} required minLength={12} disabled={busy} />
-                {!hasSharedKey && <><FieldLabel htmlFor="note-password-confirm">确认共用密码</FieldLabel><Input id="note-password-confirm" name="password-confirm" type="password" autoComplete="new-password" required minLength={12} disabled={busy} /></>}
-                <FieldDescription>{hasSharedKey ? `选择密码管理器中的 ${SHARED_NOTE_CREDENTIAL}，不要选择 GitHub 令牌。` : `只需设置一次。保存到浏览器密码管理器时使用 ${SHARED_NOTE_CREDENTIAL} 作为用户名，与 GitHub 令牌分开。`}</FieldDescription>
-              </>}
+              <FieldDescription className="flex items-center gap-2"><LockKeyhole className="size-4" />{vaultPassword ? isLegacyNote ? "保存后改用已解锁的共用密码。" : "使用已解锁的共用密码；无需为每篇笔记重新输入。" : "请先设置或解锁共用密码。"}</FieldDescription>
+              {!vaultPassword && <Button type="button" variant="outline" onClick={onRequireVault}>设置或解锁共用密码</Button>}
             </Field>}
             <Field>
               <FieldLabel htmlFor="note-title">标题</FieldLabel>
