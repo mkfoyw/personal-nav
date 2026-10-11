@@ -108,7 +108,7 @@ function GitHubBackupDialogContent({ open, settings, links, notes, categoryOrder
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>GitHub 私有备份</DialogTitle>
-          <DialogDescription>把当前浏览器的链接、分组顺序和 Markdown 笔记保存到你的私有仓库，也可以从仓库恢复。已加密笔记保持密文，其他数据仍是明文 JSON。</DialogDescription>
+          <DialogDescription>把当前浏览器的链接、分组顺序和 Markdown 笔记压缩后保存到私有仓库，也可以从仓库恢复。加密笔记保持密文；压缩不会加密其他数据。</DialogDescription>
         </DialogHeader>
         <FieldGroup>
           <Field>
@@ -128,7 +128,7 @@ function GitHubBackupDialogContent({ open, settings, links, notes, categoryOrder
             </FieldDescription>
           </Field>
         </FieldGroup>
-        <p className="text-xs text-muted-foreground">备份文件：<span className="font-mono">qidian-navigation-backup.json</span>。恢复会替换当前浏览器的链接、笔记和备份中的分组顺序。</p>
+        <p className="text-xs text-muted-foreground">新备份文件：<span className="font-mono">qidian-navigation-backup.json.gz</span>。可恢复旧版 .json 备份；恢复会替换当前浏览器的链接、笔记和备份中的分组顺序。</p>
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
         <DialogFooter className="-mx-4 -mb-4 flex-col-reverse sm:flex-row sm:justify-between">
           <div className="flex flex-wrap gap-2">

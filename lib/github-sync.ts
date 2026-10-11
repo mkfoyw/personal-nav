@@ -1,10 +1,12 @@
 import { createLinkExport, parseLibraryImport } from "@/lib/link-transfer";
+import { compressBackupJson, decompressBackupJson } from "@/lib/backup-compression";
 import type { GitHubBackupSettings } from "@/lib/indexed-db";
 import type { NavigationLink } from "@/lib/links";
 import type { NavigationNote } from "@/lib/notes";
 
 const API = "https://api.github.com";
-const BACKUP_FILE = "qidian-navigation-backup.json";
+const BACKUP_FILE = "qidian-navigation-backup.json.gz";
+const LEGACY_BACKUP_FILE = "qidian-navigation-backup.json";
 
 function repositoryPath(repository: string) {
   const parts = repository.trim().split("/");
@@ -40,9 +42,9 @@ async function validatePrivateRepository(settings: GitHubBackupSettings) {
   return path;
 }
 
-async function getBackupFile(settings: GitHubBackupSettings, repository: string) {
+async function getBackupFile(settings: GitHubBackupSettings, repository: string, filename: string) {
   const query = new URLSearchParams({ ref: settings.branch });
-  const response = await fetch(`${API}/repos/${repository}/contents/${BACKUP_FILE}?${query}`, { headers: headers(settings.token) });
+  const response = await fetch(`${API}/repos/${repository}/contents/${filename}?${query}`, { headers: headers(settings.token) });
   if (response.status === 404) return null;
   if (!response.ok) {
     if (response.status === 401) throw new Error("GitHub 令牌无效或已过期");
@@ -53,23 +55,23 @@ async function getBackupFile(settings: GitHubBackupSettings, repository: string)
   if (file.encoding !== "base64") throw new Error("GitHub 返回了无法识别的备份格式");
   const binary = atob(file.content.replace(/\s/g, ""));
   const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-  return { sha: file.sha, text: new TextDecoder().decode(bytes) };
+  return { sha: file.sha, bytes };
 }
 
-function encodeBase64(text: string) {
-  const bytes = new TextEncoder().encode(text);
+function encodeBase64(bytes: Uint8Array) {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary);
 }
 
 export async function uploadLinksToGitHub(settings: GitHubBackupSettings, links: NavigationLink[], notes: NavigationNote[], categoryOrder: string[] = []) {
+  const compressed = await compressBackupJson(JSON.stringify(createLinkExport(links, notes, categoryOrder)));
   const repository = await validatePrivateRepository(settings);
-  const existing = await getBackupFile(settings, repository);
+  const existing = await getBackupFile(settings, repository, BACKUP_FILE);
   const url = `${API}/repos/${repository}/contents/${BACKUP_FILE}`;
   const body = {
     message: "Update Qidian navigation backup",
-    content: encodeBase64(JSON.stringify(createLinkExport(links, notes, categoryOrder), null, 2)),
+    content: encodeBase64(compressed),
     branch: settings.branch,
     ...(existing ? { sha: existing.sha } : {}),
   };
@@ -79,10 +81,17 @@ export async function uploadLinksToGitHub(settings: GitHubBackupSettings, links:
 
 export async function downloadLinksFromGitHub(settings: GitHubBackupSettings) {
   const repository = await validatePrivateRepository(settings);
-  const backup = await getBackupFile(settings, repository);
+  const compressed = await getBackupFile(settings, repository, BACKUP_FILE);
+  const backup = compressed ?? await getBackupFile(settings, repository, LEGACY_BACKUP_FILE);
   if (!backup) throw new Error("这个分支还没有备份文件，请先同步一次");
+  let text: string;
+  if (compressed) text = await decompressBackupJson(backup.bytes);
+  else {
+    try { text = new TextDecoder("utf-8", { fatal: true }).decode(backup.bytes); }
+    catch { throw new Error("GitHub 上的旧版备份不是有效 UTF-8 文本"); }
+  }
   let value: unknown;
-  try { value = JSON.parse(backup.text); }
+  try { value = JSON.parse(text); }
   catch { throw new Error("GitHub 上的备份文件不是有效 JSON"); }
   return parseLibraryImport(value);
 }
