@@ -1,4 +1,4 @@
-import { decryptText, encryptText, isEncryptedData, type EncryptedData } from "@/lib/encryption";
+import { decryptText, encryptSharedText, isEncryptedData, type EncryptedData } from "@/lib/encryption";
 
 export interface NoteInput {
   title: string;
@@ -16,10 +16,29 @@ export interface NavigationNote extends NoteInput {
 }
 
 export const LOCKED_NOTE_TITLE = "加密笔记";
+export const NOTE_DEFAULT_VIEW = "view:notes-default";
+export const NOTE_ALL_VIEW = "view:notes-all";
+export const NOTE_ENCRYPTED_VIEW = "view:notes-encrypted";
 
-export async function protectNote(input: NoteInput, password: string, id: string): Promise<Pick<NavigationNote, "title" | "content" | "tags" | "isDefault" | "encrypted">> {
+export function notesForView(notes: NavigationNote[], view: string): NavigationNote[] {
+  return notes.filter((note) => {
+    if (view === NOTE_ENCRYPTED_VIEW) return Boolean(note.encrypted);
+    if (note.encrypted) return false;
+    if (view === NOTE_ALL_VIEW) return true;
+    if (view === NOTE_DEFAULT_VIEW) return note.isDefault !== false;
+    return view.startsWith("tag:") && note.tags.includes(view.slice(4));
+  });
+}
+
+export function sharedSaltForNotes(notes: NavigationNote[]): string | undefined {
+  const salts = [...new Set(notes.filter((note) => note.encrypted?.version === 2).map((note) => note.encrypted!.salt))];
+  if (salts.length > 1) throw new Error("备份中包含不同的加密密钥，无法合并加密笔记");
+  return salts[0];
+}
+
+export async function protectNote(input: NoteInput, password: string, id: string, sharedSalt: string): Promise<NoteInput & { encrypted: EncryptedData }> {
   const normalized = normalizeNote(input);
-  const encrypted = await encryptText(JSON.stringify(normalized), password, `qidian-note:${id}`);
+  const encrypted = await encryptSharedText(JSON.stringify(normalized), password, `qidian-note:${id}`, sharedSalt);
   return { title: LOCKED_NOTE_TITLE, content: "", tags: [], isDefault: normalized.isDefault, encrypted };
 }
 

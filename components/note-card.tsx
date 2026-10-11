@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { unlockNote, type NavigationNote, type NoteInput } from "@/lib/notes";
+import { SHARED_NOTE_CREDENTIAL } from "@/lib/password-manager";
 
 interface Props {
   note: NavigationNote;
@@ -63,8 +64,9 @@ export function NoteCard({ note, editable, first, last, onEdit, onMove }: Props)
           <DialogTitle className="pr-8 text-3xl leading-tight font-semibold">{visible.title}</DialogTitle>
         </DialogHeader>
         {note.encrypted && !unlocked ? <form onSubmit={unlock} className="flex flex-col gap-3">
-          <input className="sr-only" name="username" autoComplete="username" readOnly value={`qidian-note:${note._id}`} tabIndex={-1} aria-hidden="true" />
-          <Input name="password" type="password" autoComplete="current-password" aria-label="笔记密码" placeholder="输入笔记密码" required disabled={busy} />
+          <input id="note-view-username" className="sr-only" name="username" autoComplete="username" readOnly value={note.encrypted.version === 1 ? `qidian-note:${note._id}` : SHARED_NOTE_CREDENTIAL} tabIndex={-1} aria-hidden="true" />
+          <Input name="password" type="password" autoComplete="current-password" aria-label={note.encrypted.version === 1 ? "旧笔记密码" : "共用密码"} placeholder={note.encrypted.version === 1 ? "输入旧笔记密码" : "输入共用密码"} required disabled={busy} />
+          {note.encrypted.version === 2 && <p className="text-xs text-muted-foreground">密码管理器中请选择 {SHARED_NOTE_CREDENTIAL}；GitHub 令牌是另一条凭据。</p>}
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" disabled={busy}>{busy ? "正在解锁…" : "解锁笔记"}</Button>
         </form> : <>

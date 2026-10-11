@@ -2,7 +2,7 @@ import { normalizeLink, type NavigationLink } from "@/lib/links";
 import { normalizeStoredNote, type NavigationNote } from "@/lib/notes";
 
 export const EXPORT_FORMAT = "qidian-navigation";
-export const EXPORT_VERSION = 3;
+export const EXPORT_VERSION = 4;
 
 export interface LinkExport {
   format: typeof EXPORT_FORMAT;

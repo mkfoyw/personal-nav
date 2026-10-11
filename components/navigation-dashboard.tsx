@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useTheme } from "next-themes";
-import { Bookmark, Check, CircleAlert, Compass, Database, Download, Cloud, CodeXml, LayoutGrid, Moon, NotebookPen, Plus, RefreshCw, Sun, Upload } from "lucide-react";
+import { Bookmark, Check, CircleAlert, Compass, Database, Download, Cloud, CodeXml, LayoutGrid, LockKeyhole, Moon, NotebookPen, Plus, RefreshCw, Sun, Upload } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,12 +22,10 @@ import { useWebMcp } from "@/hooks/use-web-mcp";
 import { getCategoryOrder, saveCategoryOrder, getGitHubBackupSettings, initializeLinks, listNotes, replaceLibraryData, saveNoteOrder, type GitHubBackupSettings } from "@/lib/indexed-db";
 import { createLinkExport, mergeImportedLinks, mergeImportedNotes, parseLibraryImport } from "@/lib/link-transfer";
 import type { NavigationLink } from "@/lib/links";
-import type { NavigationNote, NoteInput } from "@/lib/notes";
+import { NOTE_ALL_VIEW, NOTE_DEFAULT_VIEW, NOTE_ENCRYPTED_VIEW, notesForView, type NavigationNote, type NoteInput } from "@/lib/notes";
 
 const DEFAULT = "view:default";
 const ALL = "view:all";
-const NOTE_DEFAULT = "view:notes-default";
-const NOTE_ALL = "view:notes-all";
 
 function Greeting() {
   const [now, setNow] = useState<Date | null>(null);
@@ -48,7 +46,7 @@ function Greeting() {
 export function NavigationDashboard() {
   const [links, setLinks] = useState<NavigationLink[]>([]);
   const [notes, setNotes] = useState<NavigationNote[]>([]);
-  const [noteTag, setNoteTag] = useState(NOTE_DEFAULT);
+  const [noteTag, setNoteTag] = useState(NOTE_DEFAULT_VIEW);
   const [status, setStatus] = useState<"loading" | "online" | "offline">("loading");
   const [error, setError] = useState("");
   const [category, setCategory] = useState(DEFAULT);
@@ -127,9 +125,9 @@ export function NavigationDashboard() {
   const tabs = [{ value: DEFAULT, label: "默认分组" }, { value: ALL, label: "全部收藏" }, ...categories.map((name) => ({ value: `category:${name}`, label: name }))];
   const activeCategory = tabs.some((tab) => tab.value === category) ? category : DEFAULT;
   const visible = links.filter((link) => activeCategory === ALL || (activeCategory === DEFAULT ? link.isDefault : link.categories.includes(activeCategory.slice(9))));
-  const noteTags = [...new Set(notes.flatMap((note) => note.tags))];
-  const activeNoteTag = noteTag === NOTE_DEFAULT || noteTag === NOTE_ALL || (noteTag.startsWith("tag:") && noteTags.includes(noteTag.slice(4))) ? noteTag : NOTE_DEFAULT;
-  const visibleNotes = notes.filter((note) => activeNoteTag === NOTE_ALL || (activeNoteTag === NOTE_DEFAULT ? note.isDefault !== false : note.tags.includes(activeNoteTag.slice(4))));
+  const noteTags = [...new Set(notes.filter((note) => !note.encrypted).flatMap((note) => note.tags))];
+  const activeNoteTag = noteTag === NOTE_DEFAULT_VIEW || noteTag === NOTE_ALL_VIEW || noteTag === NOTE_ENCRYPTED_VIEW || (noteTag.startsWith("tag:") && noteTags.includes(noteTag.slice(4))) ? noteTag : NOTE_DEFAULT_VIEW;
+  const visibleNotes = notesForView(notes, activeNoteTag);
 
   function added(link: NavigationLink) {
     save(link);
@@ -236,7 +234,7 @@ export function NavigationDashboard() {
         <section aria-label="笔记" className="flex flex-col gap-5 border-t border-border/70 pt-7 sm:pt-9">
           <Tabs value={activeNoteTag} onValueChange={setNoteTag}>
             <TabsList variant="line" className="!h-auto w-full flex-wrap justify-start gap-2 py-1" aria-label="笔记标签筛选">
-              {[{ value: NOTE_DEFAULT, label: "默认分组" }, { value: NOTE_ALL, label: "全部笔记" }, ...noteTags.map((tag) => ({ value: `tag:${tag}`, label: tag }))].map((tab) => <TabsTrigger className="h-9 flex-none rounded-lg border-border bg-background px-3 py-1.5 shadow-xs after:hidden hover:bg-muted/50 data-active:border-primary data-active:bg-primary/5 data-active:text-primary dark:data-active:border-primary dark:data-active:bg-primary/10" value={tab.value} key={tab.value}>{tab.label}</TabsTrigger>)}
+              {[{ value: NOTE_DEFAULT_VIEW, label: "默认分组" }, { value: NOTE_ALL_VIEW, label: "全部笔记" }, { value: NOTE_ENCRYPTED_VIEW, label: "加密笔记" }, ...noteTags.map((tag) => ({ value: `tag:${tag}`, label: tag }))].map((tab) => <TabsTrigger className="h-9 flex-none rounded-lg border-border bg-background px-3 py-1.5 shadow-xs after:hidden hover:bg-muted/50 data-active:border-primary data-active:bg-primary/5 data-active:text-primary dark:data-active:border-primary dark:data-active:bg-primary/10" value={tab.value} key={tab.value}>{tab.value === NOTE_ENCRYPTED_VIEW && <LockKeyhole className="size-4" />}{tab.label}</TabsTrigger>)}
             </TabsList>
           </Tabs>
           <div aria-live="polite" aria-busy={status === "loading"}>
@@ -250,7 +248,7 @@ export function NavigationDashboard() {
                 [ids[currentIndex], ids[targetIndex]] = [ids[targetIndex], ids[currentIndex]];
                 void saveNoteOrder(ids).then(setNotes).catch((error) => toast.error(error instanceof Error ? error.message : "排序保存失败"));
               }} />)}</div>
-                : <Empty className="min-h-52 border border-dashed"><EmptyHeader><EmptyMedia variant="icon"><NotebookPen /></EmptyMedia><EmptyTitle>{notes.length ? "这个标签下还没有笔记" : "还没有笔记"}</EmptyTitle><EmptyDescription>{notes.length ? "选择其他标签，或为笔记添加这个标签。" : "把想法、清单或资料记下来，支持 Markdown 格式。"}</EmptyDescription></EmptyHeader>{!notes.length && <EmptyContent><Button variant="outline" onClick={() => setNoteEditor({ note: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />新建第一篇笔记</Button></EmptyContent>}</Empty>}
+                : <Empty className="min-h-52 border border-dashed"><EmptyHeader><EmptyMedia variant="icon">{activeNoteTag === NOTE_ENCRYPTED_VIEW ? <LockKeyhole /> : <NotebookPen />}</EmptyMedia><EmptyTitle>{activeNoteTag === NOTE_ENCRYPTED_VIEW ? "还没有加密笔记" : notes.length ? "这个分组下还没有笔记" : "还没有笔记"}</EmptyTitle><EmptyDescription>{activeNoteTag === NOTE_ENCRYPTED_VIEW ? "编辑笔记时开启加密，它就会显示在这里。" : notes.length ? "选择其他分组，或为笔记添加标签。" : "把想法、清单或资料记下来，支持 Markdown 格式。"}</EmptyDescription></EmptyHeader>{!notes.length && activeNoteTag !== NOTE_ENCRYPTED_VIEW && <EmptyContent><Button variant="outline" onClick={() => setNoteEditor({ note: null })} disabled={status !== "online"}><Plus data-icon="inline-start" />新建第一篇笔记</Button></EmptyContent>}</Empty>}
           </div>
         </section>
       </section>
@@ -277,6 +275,6 @@ export function NavigationDashboard() {
       onRestored={(restoredLinks, restoredNotes, restoredOrder) => { if (restoredOrder !== undefined) setCategoryOrder(restoredOrder); setLinks(restoredLinks); setNotes(restoredNotes); setStatus("online"); setError(""); setCategory(DEFAULT); }}
     />
     {editor && <LinkEditor link={editor.link} availableCategories={categories} onClose={() => setEditor(null)} onSaved={added} onDeleted={(id) => { setLinks((current) => current.filter((link) => link._id !== id)); }} />}
-    {noteEditor && <NoteEditor note={noteEditor.note} initialUnlock={noteEditor.initialUnlock} existingTags={noteTags} onClose={() => setNoteEditor(null)} onSaved={(note) => { setNotes((current) => current.some((item) => item._id === note._id) ? current.map((item) => item._id === note._id ? note : item) : [...current, note]); }} onDeleted={(id) => { setNotes((current) => current.filter((note) => note._id !== id)); }} />}
+    {noteEditor && <NoteEditor note={noteEditor.note} hasSharedKey={notes.some((note) => note.encrypted?.version === 2)} initialUnlock={noteEditor.initialUnlock} existingTags={noteTags} onClose={() => setNoteEditor(null)} onSaved={(note) => { setNotes((current) => current.some((item) => item._id === note._id) ? current.map((item) => item._id === note._id ? note : item) : [...current, note]); if (note.encrypted) setNoteTag(NOTE_ENCRYPTED_VIEW); else if (noteEditor.note?.encrypted) setNoteTag(note.isDefault ? NOTE_DEFAULT_VIEW : NOTE_ALL_VIEW); }} onDeleted={(id) => { setNotes((current) => current.filter((note) => note._id !== id)); }} />}
   </div>;
 }

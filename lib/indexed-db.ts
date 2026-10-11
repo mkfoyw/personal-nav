@@ -1,6 +1,7 @@
 import { defaultLinks, normalizeLink, type LinkInput, type NavigationLink } from "@/lib/links";
 import { mergeImportedLinks } from "@/lib/link-transfer";
-import { normalizeNote, protectNote, type NavigationNote, type NoteInput } from "@/lib/notes";
+import { normalizeNote, protectNote, sharedSaltForNotes, unlockNote, type NavigationNote, type NoteInput } from "@/lib/notes";
+import { createSharedSalt } from "@/lib/encryption";
 
 const DATABASE_NAME = "qidian-personal-nav";
 const DATABASE_VERSION = 3;
@@ -151,25 +152,51 @@ export async function deleteLink(id: string): Promise<void> {
 }
 
 export async function createNote(input: NoteInput, password?: string, id = crypto.randomUUID()): Promise<NavigationNote> {
-  const normalized = password ? await protectNote(input, password, id) : normalizeNote(input);
+  const encryptedRequested = password !== undefined;
+  const existing = encryptedRequested ? await listNotes() : [];
+  const salt = encryptedRequested ? sharedSaltForNotes(existing) ?? createSharedSalt() : undefined;
+  const sharedNote = existing.find((note) => note.encrypted?.version === 2);
+  if (encryptedRequested && sharedNote) await unlockNote(sharedNote, password);
+  const normalized = encryptedRequested ? await protectNote(input, password, id, salt!) : normalizeNote(input);
   const now = new Date().toISOString();
   const note: NavigationNote = { ...normalized, _id: id, order: Date.now(), createdAt: now, updatedAt: now };
   const database = await openDatabase();
   try {
-    await requestResult(database.transaction(NOTES_STORE, "readwrite").objectStore(NOTES_STORE).add(note));
+    const store = database.transaction(NOTES_STORE, "readwrite").objectStore(NOTES_STORE);
+    if (encryptedRequested) {
+      const latestSalt = sharedSaltForNotes(await requestResult(store.getAll() as IDBRequest<NavigationNote[]>));
+      if (latestSalt && latestSalt !== salt) throw new Error("加密密钥刚刚发生变化，请重试");
+    }
+    await requestResult(store.add(note));
     return note;
   } finally { database.close(); }
 }
 
-export async function updateNote(id: string, input: NoteInput, password?: string | null): Promise<NavigationNote> {
-  const normalized = password ? await protectNote(input, password, id) : normalizeNote(input);
+export async function updateNote(id: string, input: NoteInput, password?: string | null, sharedPassword?: string): Promise<NavigationNote> {
+  const notes = await listNotes();
+  const current = notes.find((note) => note._id === id);
+  if (!current) throw new Error("未找到这篇笔记");
+  if (current.encrypted && password === undefined) throw new Error("请先解锁这篇笔记");
+  const encryptedRequested = password !== undefined && password !== null;
+  let normalized: NoteInput | Awaited<ReturnType<typeof protectNote>>;
+  if (encryptedRequested) {
+    if (current.encrypted) await unlockNote(current, password);
+    const vaultPassword = sharedPassword ?? password;
+    const salt = sharedSaltForNotes(notes) ?? createSharedSalt();
+    const sharedNote = notes.find((note) => note.encrypted?.version === 2);
+    if (sharedNote) await unlockNote(sharedNote, vaultPassword);
+    normalized = await protectNote(input, vaultPassword, id, salt);
+  } else normalized = normalizeNote(input);
   const database = await openDatabase();
   try {
     const transaction = database.transaction(NOTES_STORE, "readwrite");
     const store = transaction.objectStore(NOTES_STORE);
-    const current = await requestResult(store.get(id) as IDBRequest<NavigationNote | undefined>);
-    if (!current) throw new Error("未找到这篇笔记");
-    if (current.encrypted && password === undefined) throw new Error("请先解锁这篇笔记");
+    const latest = await requestResult(store.get(id) as IDBRequest<NavigationNote | undefined>);
+    if (!latest || latest.updatedAt !== current.updatedAt) throw new Error("笔记已在其他页面更新，请重新打开后重试");
+    if (encryptedRequested) {
+      const latestSalt = sharedSaltForNotes(await requestResult(store.getAll() as IDBRequest<NavigationNote[]>));
+      if (latestSalt && latestSalt !== (normalized as Awaited<ReturnType<typeof protectNote>>).encrypted.salt) throw new Error("加密密钥刚刚发生变化，请重试");
+    }
     const updated: NavigationNote = { ...normalized, _id: id, order: current.order, createdAt: current.createdAt, updatedAt: new Date().toISOString() };
     await requestResult(store.put(updated));
     return updated;
@@ -211,6 +238,7 @@ export async function replaceLinks(links: NavigationLink[]): Promise<void> {
 }
 
 export async function replaceLibraryData(links: NavigationLink[], notes: NavigationNote[], categoryOrder?: string[]): Promise<void> {
+  sharedSaltForNotes(notes);
   const database = await openDatabase();
   try {
     const transaction = database.transaction([LINKS_STORE, NOTES_STORE, META_STORE], "readwrite");
