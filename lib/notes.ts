@@ -1,3 +1,5 @@
+import { decryptText, encryptText, isEncryptedData, type EncryptedData } from "@/lib/encryption";
+
 export interface NoteInput {
   title: string;
   content: string;
@@ -10,6 +12,29 @@ export interface NavigationNote extends NoteInput {
   order: number;
   createdAt: string;
   updatedAt: string;
+  encrypted?: EncryptedData;
+}
+
+export const LOCKED_NOTE_TITLE = "加密笔记";
+
+export async function protectNote(input: NoteInput, password: string, id: string): Promise<Pick<NavigationNote, "title" | "content" | "tags" | "isDefault" | "encrypted">> {
+  const normalized = normalizeNote(input);
+  const encrypted = await encryptText(JSON.stringify(normalized), password, `qidian-note:${id}`);
+  return { title: LOCKED_NOTE_TITLE, content: "", tags: [], isDefault: normalized.isDefault, encrypted };
+}
+
+export async function unlockNote(note: NavigationNote, password: string): Promise<NoteInput> {
+  if (!note.encrypted) return normalizeNote(note);
+  const text = await decryptText(note.encrypted, password, `qidian-note:${note._id}`);
+  try { return normalizeNote(JSON.parse(text)); }
+  catch { throw new Error("解密后的笔记格式无效"); }
+}
+
+export function normalizeStoredNote(value: Record<string, unknown>): Pick<NavigationNote, "title" | "content" | "tags" | "isDefault" | "encrypted"> {
+  if (value.encrypted === undefined) return normalizeNote(value);
+  if (!isEncryptedData(value.encrypted)) throw new Error("笔记加密数据格式无效");
+  if (value.isDefault !== undefined && typeof value.isDefault !== "boolean") throw new Error("默认分组设置无效");
+  return { title: LOCKED_NOTE_TITLE, content: "", tags: [], isDefault: value.isDefault !== false, encrypted: value.encrypted };
 }
 
 export function parseNoteTags(value: string | string[]): string[] {

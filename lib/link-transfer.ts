@@ -1,8 +1,8 @@
 import { normalizeLink, type NavigationLink } from "@/lib/links";
-import { normalizeNote, type NavigationNote } from "@/lib/notes";
+import { normalizeStoredNote, type NavigationNote } from "@/lib/notes";
 
 export const EXPORT_FORMAT = "qidian-navigation";
-export const EXPORT_VERSION = 2;
+export const EXPORT_VERSION = 3;
 
 export interface LinkExport {
   format: typeof EXPORT_FORMAT;
@@ -72,9 +72,13 @@ export function parseLibraryImport(value: unknown): LibraryImport {
     if (!row || typeof row !== "object" || Array.isArray(row)) throw new Error(`第 ${index + 1} 篇笔记格式无效`);
     try {
       const source = row as Record<string, unknown>;
-      const normalized = normalizeNote(source);
+      const normalized = normalizeStoredNote(source);
+      if (normalized.encrypted && (typeof source._id !== "string" || !source._id.trim())) throw new Error("加密笔记缺少 ID");
       let id = typeof source._id === "string" && source._id.trim() ? source._id.trim() : crypto.randomUUID();
-      if (seenIds.has(id)) id = crypto.randomUUID();
+      if (seenIds.has(id)) {
+        if (normalized.encrypted) throw new Error("加密笔记 ID 重复");
+        id = crypto.randomUUID();
+      }
       seenIds.add(id);
       return {
         ...normalized,

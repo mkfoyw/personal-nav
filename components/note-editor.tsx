@@ -3,7 +3,7 @@
 import { useState, type FormEvent, type KeyboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, LockKeyhole, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -13,26 +13,51 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { createNote, deleteNote, updateNote } from "@/lib/indexed-db";
-import type { NavigationNote, NoteInput } from "@/lib/notes";
+import { unlockNote, type NavigationNote, type NoteInput } from "@/lib/notes";
+import { offerToSaveNotePassword } from "@/lib/password-manager";
 
 interface Props {
   note: NavigationNote | null;
+  initialUnlock?: { input: NoteInput; password: string };
   existingTags: string[];
   onClose: () => void;
   onSaved: (note: NavigationNote) => void;
   onDeleted: (id: string) => void;
 }
 
-export function NoteEditor({ note, existingTags, onClose, onSaved, onDeleted }: Props) {
-  const [title, setTitle] = useState(note?.title ?? "");
-  const [content, setContent] = useState(note?.content ?? "");
-  const [tags, setTags] = useState(note?.tags ?? []);
+export function NoteEditor({ note, initialUnlock, existingTags, onClose, onSaved, onDeleted }: Props) {
+  const [draftId] = useState(() => crypto.randomUUID());
+  const [locked, setLocked] = useState(Boolean(note?.encrypted && !initialUnlock));
+  const [protectedNote, setProtectedNote] = useState(Boolean(note?.encrypted));
+  const [password, setPassword] = useState(initialUnlock?.password ?? "");
+  const [title, setTitle] = useState(initialUnlock?.input.title ?? (note?.encrypted ? "" : note?.title ?? ""));
+  const [content, setContent] = useState(initialUnlock?.input.content ?? (note?.encrypted ? "" : note?.content ?? ""));
+  const [tags, setTags] = useState(initialUnlock?.input.tags ?? (note?.encrypted ? [] : note?.tags ?? []));
   const [tagInput, setTagInput] = useState("");
-  const [isDefault, setIsDefault] = useState(note?.isDefault ?? true);
+  const [isDefault, setIsDefault] = useState(initialUnlock?.input.isDefault ?? (note?.encrypted ? true : note?.isDefault ?? true));
   const [preview, setPreview] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const credentialName = `qidian-note:${note?._id ?? draftId}`;
+
+  async function unlock(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!note?.encrypted || busy) return;
+    const enteredPassword = String(new FormData(event.currentTarget).get("password") ?? "");
+    setBusy(true);
+    setError("");
+    try {
+      const input = await unlockNote(note, enteredPassword);
+      setPassword(enteredPassword);
+      setTitle(input.title);
+      setContent(input.content);
+      setTags(input.tags);
+      setIsDefault(input.isDefault);
+      setLocked(false);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "解锁失败"); }
+    finally { setBusy(false); }
+  }
 
   function addTag(value: string) {
     const tag = value.trim();
@@ -51,11 +76,18 @@ export function NoteEditor({ note, existingTags, onClose, onSaved, onDeleted }: 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
+    const formData = new FormData(event.currentTarget);
     setBusy(true);
     setError("");
     try {
+      const savePassword = note?.encrypted ? password : String(formData.get("password") ?? "");
+      if (protectedNote && !note?.encrypted && savePassword !== formData.get("password-confirm")) throw new Error("两次输入的密码不一致");
+      if (protectedNote && savePassword.length < 12) throw new Error("密码至少需要 12 个字符");
       const input: NoteInput = { title, content, tags, isDefault };
-      const saved = note ? await updateNote(note._id, input) : await createNote(input);
+      const saved = note
+        ? await updateNote(note._id, input, protectedNote ? savePassword : note.encrypted ? null : undefined)
+        : await createNote(input, protectedNote ? savePassword : undefined, draftId);
+      if (protectedNote && !note?.encrypted) void offerToSaveNotePassword(saved._id, savePassword);
       onSaved(saved);
       toast.success(note ? "笔记已更新" : "笔记已创建");
       onClose();
@@ -83,11 +115,30 @@ export function NoteEditor({ note, existingTags, onClose, onSaved, onDeleted }: 
     <Dialog open onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl" showCloseButton={!busy}>
         <DialogHeader>
-          <DialogTitle>{note ? "编辑笔记" : "新建笔记"}</DialogTitle>
-          <DialogDescription>正文支持 Markdown，可预览常用排版、链接、任务列表和表格。</DialogDescription>
+          <DialogTitle>{locked ? "解锁笔记" : note ? "编辑笔记" : "新建笔记"}</DialogTitle>
+          <DialogDescription>{locked ? "输入这篇笔记的密码后才能查看和编辑。" : "正文支持 Markdown，可预览常用排版、链接、任务列表和表格。"}</DialogDescription>
         </DialogHeader>
-        <form onSubmit={save} className="flex flex-col gap-5">
+        {locked ? <form onSubmit={unlock} className="flex flex-col gap-4">
+          <input className="sr-only" name="username" autoComplete="username" readOnly value={credentialName} tabIndex={-1} aria-hidden="true" />
+          <Field><FieldLabel htmlFor="note-unlock-password">笔记密码</FieldLabel><Input id="note-unlock-password" name="password" type="password" autoComplete="current-password" required disabled={busy} /></Field>
+          {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+          <DialogFooter><Button type="button" variant="outline" onClick={onClose} disabled={busy}>取消</Button><Button type="submit" disabled={busy}>{busy ? "正在解锁…" : "解锁"}</Button></DialogFooter>
+        </form> : <form onSubmit={save} className="flex flex-col gap-5">
           <FieldGroup>
+            <Field orientation="horizontal">
+              <div className="flex-1"><FieldLabel htmlFor="note-protected">加密这篇笔记</FieldLabel><FieldDescription>仅这篇笔记的标题、标签和正文会加密；新备份中也保持密文。旧备份不会自动改写，忘记密码后无法恢复。</FieldDescription></div>
+              <Switch id="note-protected" checked={protectedNote} onCheckedChange={setProtectedNote} disabled={busy} />
+            </Field>
+            {protectedNote && <Field>
+              <input className="sr-only" name="username" autoComplete="username" readOnly value={credentialName} tabIndex={-1} aria-hidden="true" />
+              {note?.encrypted ? <FieldDescription className="flex items-center gap-2"><LockKeyhole className="size-4" />已用当前密码解锁；保存后继续使用此密码。</FieldDescription> : <>
+                <FieldLabel htmlFor="note-password">笔记密码</FieldLabel>
+                <Input id="note-password" name="password" type="password" autoComplete="new-password" required minLength={12} disabled={busy} />
+                <FieldLabel htmlFor="note-password-confirm">确认密码</FieldLabel>
+                <Input id="note-password-confirm" name="password-confirm" type="password" autoComplete="new-password" required minLength={12} disabled={busy} />
+                <FieldDescription>建议使用浏览器生成并保存密码；保存提示由浏览器决定。</FieldDescription>
+              </>}
+            </Field>}
             <Field>
               <FieldLabel htmlFor="note-title">标题</FieldLabel>
               <Input id="note-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="给这篇笔记起个名字" required maxLength={120} autoComplete="off" disabled={busy} />
@@ -129,7 +180,7 @@ export function NoteEditor({ note, existingTags, onClose, onSaved, onDeleted }: 
             <Button type="button" variant="outline" onClick={onClose} disabled={busy}>取消</Button>
             <Button type="submit" disabled={busy}>{busy && <Loader2 className="animate-spin" data-icon="inline-start" />}{busy ? "处理中…" : "保存笔记"}</Button>
           </DialogFooter>
-        </form>
+        </form>}
       </DialogContent>
     </Dialog>
     <AlertDialog open={confirmDelete} onOpenChange={(open) => { if (!busy) setConfirmDelete(open); }}>

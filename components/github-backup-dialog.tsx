@@ -108,7 +108,7 @@ function GitHubBackupDialogContent({ open, settings, links, notes, categoryOrder
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>GitHub 私有备份</DialogTitle>
-          <DialogDescription>把当前浏览器的链接、分组顺序和 Markdown 笔记保存到你的私有仓库，也可以从仓库恢复。</DialogDescription>
+          <DialogDescription>把当前浏览器的链接、分组顺序和 Markdown 笔记保存到你的私有仓库，也可以从仓库恢复。已加密笔记保持密文，其他数据仍是明文 JSON。</DialogDescription>
         </DialogHeader>
         <FieldGroup>
           <Field>

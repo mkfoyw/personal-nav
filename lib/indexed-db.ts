@@ -1,6 +1,6 @@
 import { defaultLinks, normalizeLink, type LinkInput, type NavigationLink } from "@/lib/links";
 import { mergeImportedLinks } from "@/lib/link-transfer";
-import { normalizeNote, type NavigationNote, type NoteInput } from "@/lib/notes";
+import { normalizeNote, protectNote, type NavigationNote, type NoteInput } from "@/lib/notes";
 
 const DATABASE_NAME = "qidian-personal-nav";
 const DATABASE_VERSION = 3;
@@ -150,10 +150,10 @@ export async function deleteLink(id: string): Promise<void> {
   finally { database.close(); }
 }
 
-export async function createNote(input: NoteInput): Promise<NavigationNote> {
-  const normalized = normalizeNote(input);
+export async function createNote(input: NoteInput, password?: string, id = crypto.randomUUID()): Promise<NavigationNote> {
+  const normalized = password ? await protectNote(input, password, id) : normalizeNote(input);
   const now = new Date().toISOString();
-  const note: NavigationNote = { ...normalized, _id: crypto.randomUUID(), order: Date.now(), createdAt: now, updatedAt: now };
+  const note: NavigationNote = { ...normalized, _id: id, order: Date.now(), createdAt: now, updatedAt: now };
   const database = await openDatabase();
   try {
     await requestResult(database.transaction(NOTES_STORE, "readwrite").objectStore(NOTES_STORE).add(note));
@@ -161,14 +161,16 @@ export async function createNote(input: NoteInput): Promise<NavigationNote> {
   } finally { database.close(); }
 }
 
-export async function updateNote(id: string, input: NoteInput): Promise<NavigationNote> {
+export async function updateNote(id: string, input: NoteInput, password?: string | null): Promise<NavigationNote> {
+  const normalized = password ? await protectNote(input, password, id) : normalizeNote(input);
   const database = await openDatabase();
   try {
     const transaction = database.transaction(NOTES_STORE, "readwrite");
     const store = transaction.objectStore(NOTES_STORE);
     const current = await requestResult(store.get(id) as IDBRequest<NavigationNote | undefined>);
     if (!current) throw new Error("未找到这篇笔记");
-    const updated: NavigationNote = { ...normalizeNote(input), _id: id, order: current.order, createdAt: current.createdAt, updatedAt: new Date().toISOString() };
+    if (current.encrypted && password === undefined) throw new Error("请先解锁这篇笔记");
+    const updated: NavigationNote = { ...normalized, _id: id, order: current.order, createdAt: current.createdAt, updatedAt: new Date().toISOString() };
     await requestResult(store.put(updated));
     return updated;
   } finally { database.close(); }

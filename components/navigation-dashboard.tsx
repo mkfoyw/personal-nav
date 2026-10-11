@@ -22,7 +22,7 @@ import { useWebMcp } from "@/hooks/use-web-mcp";
 import { getCategoryOrder, saveCategoryOrder, getGitHubBackupSettings, initializeLinks, listNotes, replaceLibraryData, saveNoteOrder, type GitHubBackupSettings } from "@/lib/indexed-db";
 import { createLinkExport, mergeImportedLinks, mergeImportedNotes, parseLibraryImport } from "@/lib/link-transfer";
 import type { NavigationLink } from "@/lib/links";
-import type { NavigationNote } from "@/lib/notes";
+import type { NavigationNote, NoteInput } from "@/lib/notes";
 
 const DEFAULT = "view:default";
 const ALL = "view:all";
@@ -58,7 +58,7 @@ export function NavigationDashboard() {
   const draggedCategory = useRef<string | null>(null);
   const [dropCategory, setDropCategory] = useState<{ name: string; side: "before" | "after" } | null>(null);
   const [editor, setEditor] = useState<{ link: NavigationLink | null } | null>(null);
-  const [noteEditor, setNoteEditor] = useState<{ note: NavigationNote | null } | null>(null);
+  const [noteEditor, setNoteEditor] = useState<{ note: NavigationNote | null; initialUnlock?: { input: NoteInput; password: string } } | null>(null);
   const [githubBackupOpen, setGithubBackupOpen] = useState(false);
   const [githubSettings, setGithubSettings] = useState<GitHubBackupSettings | null>(null);
   const [transferBusy, setTransferBusy] = useState(false);
@@ -241,7 +241,7 @@ export function NavigationDashboard() {
           </Tabs>
           <div aria-live="polite" aria-busy={status === "loading"}>
             {status === "loading" && !notes.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="正在加载笔记">{Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-44 rounded-xl" />)}</div>
-              : visibleNotes.length ? <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">{visibleNotes.map((note, index) => <NoteCard key={note._id} note={note} editable={status === "online"} first={index === 0} last={index === visibleNotes.length - 1} onEdit={() => setNoteEditor({ note })} onMove={(direction) => {
+              : visibleNotes.length ? <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">{visibleNotes.map((note, index) => <NoteCard key={note._id} note={note} editable={status === "online"} first={index === 0} last={index === visibleNotes.length - 1} onEdit={(initialUnlock) => setNoteEditor({ note, initialUnlock })} onMove={(direction) => {
                 const target = index + direction;
                 if (target < 0 || target >= visibleNotes.length) return;
                 const ids = notes.map((item) => item._id);
@@ -277,6 +277,6 @@ export function NavigationDashboard() {
       onRestored={(restoredLinks, restoredNotes, restoredOrder) => { if (restoredOrder !== undefined) setCategoryOrder(restoredOrder); setLinks(restoredLinks); setNotes(restoredNotes); setStatus("online"); setError(""); setCategory(DEFAULT); }}
     />
     {editor && <LinkEditor link={editor.link} availableCategories={categories} onClose={() => setEditor(null)} onSaved={added} onDeleted={(id) => { setLinks((current) => current.filter((link) => link._id !== id)); }} />}
-    {noteEditor && <NoteEditor note={noteEditor.note} existingTags={noteTags} onClose={() => setNoteEditor(null)} onSaved={(note) => { setNotes((current) => current.some((item) => item._id === note._id) ? current.map((item) => item._id === note._id ? note : item) : [...current, note]); }} onDeleted={(id) => { setNotes((current) => current.filter((note) => note._id !== id)); }} />}
+    {noteEditor && <NoteEditor note={noteEditor.note} initialUnlock={noteEditor.initialUnlock} existingTags={noteTags} onClose={() => setNoteEditor(null)} onSaved={(note) => { setNotes((current) => current.some((item) => item._id === note._id) ? current.map((item) => item._id === note._id ? note : item) : [...current, note]); }} onDeleted={(id) => { setNotes((current) => current.filter((note) => note._id !== id)); }} />}
   </div>;
 }
