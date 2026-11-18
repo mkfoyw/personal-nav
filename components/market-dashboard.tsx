@@ -58,7 +58,6 @@ export function MarketDashboard() {
   const [selectedId, setSelectedId] = useState("");
   const [interval, setInterval] = useState<ChartInterval>("1h");
   const [sort, setSort] = useState<"default" | "gainers" | "losers" | "volume">("default");
-  const [page, setPage] = useState(0);
   const [now, setNow] = useState(0);
   const [editor, setEditor] = useState<{ instrument?: Instrument } | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -109,9 +108,7 @@ export function MarketDashboard() {
     if (sort === "volume") return (b?.volume ?? 0) - (a?.volume ?? 0);
     return settings.favorites.indexOf(left.id) - settings.favorites.indexOf(right.id);
   });
-  const pages = Math.max(1, Math.ceil(filtered.length / 20));
-  const currentPage = Math.min(page, pages - 1);
-  const rows = ready ? filtered.slice(currentPage * 20, (currentPage + 1) * 20) : [];
+  const rows = ready ? filtered : [];
   const selected = filtered.find((item) => item.id === selectedId) ?? filtered[0];
   const selectedQuote = selected && quoteFor(selected);
   const chart = useMarketChart(ready && displayMode === "table" ? selected : undefined, interval, settings.autoRefresh, refresh);
@@ -139,7 +136,6 @@ export function MarketDashboard() {
     const targetIndex = index + direction;
     if (index < 0 || targetIndex < 0 || targetIndex >= filtered.length) return;
     moveItem(id, filtered[targetIndex].id, direction === -1 ? "before" : "after");
-    setPage(Math.floor(targetIndex / 20));
   }
 
   function startItemDrag(event: DragEvent<HTMLElement>, id: string) {
@@ -198,7 +194,7 @@ export function MarketDashboard() {
     const existing = settings.favorites.includes(item.id);
     if (existing && !editor?.instrument) throw new Error("这个交易对已在清单中，请点击列表左侧的编辑按钮修改标签");
     setSettings((previous) => ({ ...previous, favorites: existing ? previous.favorites : [...previous.favorites, item.id], tags: { ...previous.tags, [item.id]: tags }, view: "watchlist" }));
-    setSearch(""); setPage(0); setSelectedTags([]); setSelectedId(item.id); setEditor(null);
+    setSearch(""); setSelectedTags([]); setSelectedId(item.id); setEditor(null);
     toast.success(existing ? `已更新 ${item.base} 的标签` : `已添加 ${item.base}`);
   }
   function exportWatchlist() {
@@ -215,7 +211,7 @@ export function MarketDashboard() {
     try {
       const imported = parseMarketImport(JSON.parse(await file.text()));
       setSettings(mergeMarketSettings(settings, imported));
-      setPage(0); setSelectedTags([]); toast.success("已合并自选、标签并恢复设置");
+      setSelectedTags([]); toast.success("已合并自选、标签并恢复设置");
     } catch (error) { toast.error(error instanceof Error ? error.message : "导入失败"); }
   }
 
@@ -269,11 +265,11 @@ export function MarketDashboard() {
       <section className="overflow-hidden rounded-2xl border bg-card shadow-xs" aria-label="行情列表">
         <div className="flex flex-col gap-4 border-b p-4 sm:p-5">
           <h2 className="flex items-center gap-2 px-1 text-sm font-medium"><Star className="size-4 text-primary" />我的自选</h2>
-          <div className="flex flex-wrap items-center gap-3"><div className="relative min-w-40 flex-1 sm:max-w-xs"><Search className="absolute top-2.5 left-3 size-4 text-muted-foreground" /><Input aria-label="搜索交易对" placeholder="搜索自选代码、名称或标签" className="pl-9" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} /></div><label className="flex items-center gap-2 text-xs text-muted-foreground"><ArrowDownUp className="size-3.5" /><select aria-label="行情排序" value={sort} onChange={(event) => { setSort(event.target.value as typeof sort); clearDrag(); setPage(0); }} className="rounded-md border bg-background p-2 text-foreground"><option value="default">默认排序</option><option value="gainers">涨幅优先</option><option value="losers">跌幅优先</option><option value="volume">成交额优先</option></select></label><span className="ml-auto text-xs text-muted-foreground">{filtered.length} 个交易对</span><div role="group" aria-label="展示方式" className="flex gap-1 rounded-lg border p-1"><Button size="sm" variant="ghost" disabled={!ready} aria-pressed={displayMode === "table"} onClick={() => { clearDrag(); setSettings((previous) => ({ ...previous, displayMode: "table" })); }} className={displayMode === "table" ? "bg-primary/10 text-primary" : "text-muted-foreground"}><Table2 />表格</Button><Button size="sm" variant="ghost" disabled={!ready} aria-pressed={displayMode === "cards"} onClick={() => { clearDrag(); setSettings((previous) => ({ ...previous, displayMode: "cards" })); }} className={displayMode === "cards" ? "bg-primary/10 text-primary" : "text-muted-foreground"}><LayoutGrid />卡片</Button></div></div>
+          <div className="flex flex-wrap items-center gap-3"><div className="relative min-w-40 flex-1 sm:max-w-xs"><Search className="absolute top-2.5 left-3 size-4 text-muted-foreground" /><Input aria-label="搜索交易对" placeholder="搜索自选代码、名称或标签" className="pl-9" value={search} onChange={(event) => { setSearch(event.target.value); }} /></div><label className="flex items-center gap-2 text-xs text-muted-foreground"><ArrowDownUp className="size-3.5" /><select aria-label="行情排序" value={sort} onChange={(event) => { setSort(event.target.value as typeof sort); clearDrag(); }} className="rounded-md border bg-background p-2 text-foreground"><option value="default">默认排序</option><option value="gainers">涨幅优先</option><option value="losers">跌幅优先</option><option value="volume">成交额优先</option></select></label><span className="ml-auto text-xs text-muted-foreground">{filtered.length} 个交易对</span><div role="group" aria-label="展示方式" className="flex gap-1 rounded-lg border p-1"><Button size="sm" variant="ghost" disabled={!ready} aria-pressed={displayMode === "table"} onClick={() => { clearDrag(); setSettings((previous) => ({ ...previous, displayMode: "table" })); }} className={displayMode === "table" ? "bg-primary/10 text-primary" : "text-muted-foreground"}><Table2 />表格</Button><Button size="sm" variant="ghost" disabled={!ready} aria-pressed={displayMode === "cards"} onClick={() => { clearDrag(); setSettings((previous) => ({ ...previous, displayMode: "cards" })); }} className={displayMode === "cards" ? "bg-primary/10 text-primary" : "text-muted-foreground"}><LayoutGrid />卡片</Button></div></div>
         </div>
         <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3 sm:px-5" role="group" aria-label="标签筛选">
           <Tags className="mr-1 size-4 text-muted-foreground" />
-          <button aria-pressed={!activeTags.length} onClick={() => { setSelectedTags([]); setPage(0); }} className={`rounded-md border px-3 py-1.5 text-xs ${!activeTags.length ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}>全部标签</button>
+          <button aria-pressed={!activeTags.length} onClick={() => { setSelectedTags([]); }} className={`rounded-md border px-3 py-1.5 text-xs ${!activeTags.length ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}>全部标签</button>
           {filterTags.map((tag) => <button key={tag.key} disabled={!ready} draggable={ready} aria-pressed={activeTags.includes(tag.key)} aria-describedby="market-tag-help" title="拖动排序；Alt + ← / → 移动，点击筛选"
             onDragStart={(event) => { tagDragSource.current = tag.key; suppressTagClick.current = true; setDraggingTag(tag.key); setTagDropTarget(null); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", tag.key); }}
             onDragOver={(event) => {
@@ -300,7 +296,7 @@ export function MarketDashboard() {
               const neighbor = filterTags[index + (event.key === "ArrowLeft" ? -1 : 1)];
               if (neighbor) moveTag(tag.key, neighbor.key, event.key === "ArrowLeft" ? "before" : "after");
             }}
-            onClick={(event) => { if (suppressTagClick.current) { event.preventDefault(); return; } setSelectedTags((previous) => previous.includes(tag.key) ? previous.filter((value) => value !== tag.key) : [...previous, tag.key]); setPage(0); }}
+            onClick={(event) => { if (suppressTagClick.current) { event.preventDefault(); return; } setSelectedTags((previous) => previous.includes(tag.key) ? previous.filter((value) => value !== tag.key) : [...previous, tag.key]); }}
             className={`max-w-full cursor-grab truncate rounded-md border px-3 py-1.5 text-xs active:cursor-grabbing ${activeTags.includes(tag.key) ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"} ${draggingTag === tag.key ? "opacity-40" : ""} ${tagDropTarget?.key === tag.key ? tagDropTarget.side === "before" ? "shadow-[inset_2px_0_0_var(--primary)]" : "shadow-[inset_-2px_0_0_var(--primary)]" : ""}`}>{tag.label}</button>)}
         </div>
         <p id="market-tag-help" className="sr-only">点击筛选；拖动标签，或按 Alt 加左右方向键调整标签顺序。</p>
@@ -334,7 +330,7 @@ export function MarketDashboard() {
           </div>}
           {!rows.length && <div className="flex min-h-52 flex-col items-center justify-center gap-3 px-5 text-center"><ChartNoAxesCombined className="size-7 text-muted-foreground" /><p className="font-medium">{!ready ? "正在读取自选" : !settings.favorites.length ? "添加第一只股票或代币" : "没有匹配的自选"}</p><p className="text-sm text-muted-foreground">{!settings.favorites.length ? "输入代码，设置标签，开始建立自己的行情清单。" : "尝试其他标签或搜索词。"}</p><Button variant="outline" disabled={!ready} onClick={() => setEditor({})}><Plus />添加股票 / 代币</Button></div>}
         </div>
-        <div className="flex items-center justify-between gap-3 border-t px-4 py-3 text-xs text-muted-foreground"><span>仅展示手动添加的自选 · USDT 报价</span><div className="flex items-center gap-3"><Button variant="ghost" size="sm" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>上一页</Button><span>{currentPage + 1} / {pages}</span><Button variant="ghost" size="sm" disabled={currentPage >= pages - 1} onClick={() => setPage(currentPage + 1)}>下一页</Button></div></div>
+        <div className="border-t px-4 py-3 text-xs text-muted-foreground">仅展示手动添加的自选 · USDT 报价</div>
       </section>
       {displayMode === "table" && selected && <section aria-label="交易对走势" className="mt-6 rounded-2xl border bg-card p-5 shadow-xs sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex items-center gap-2"><h2 className="text-lg font-semibold"><a href={binanceMarketUrl(selected)} target="_blank" rel="noopener noreferrer" aria-label={`在 Binance 打开 ${selected.symbol}（新标签页）`} className="inline-flex items-center gap-1.5 rounded hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary">{selected.base}<ExternalLink className="size-3.5 text-muted-foreground" /></a></h2><span className="rounded bg-muted px-2 py-1 text-[10px] text-muted-foreground">{MARKET_LABELS[selected.kind]}</span></div><div className="mt-3 flex items-baseline gap-3"><span className="text-3xl font-medium tracking-tight tabular-nums">{number(selectedQuote?.price)}</span><span className="text-xs text-muted-foreground">USDT</span><span className={`text-sm tabular-nums ${tone(selectedQuote?.change)}`}>{selectedQuote ? percent(selectedQuote.change) : "—"}</span></div><p className="mt-2 text-xs text-muted-foreground">{selectedSnapshot ? `${selectedCached ? "缓存保存" : "行情获取"}于 ${time(selectedSnapshot.fetchedAt)} · 涨跌幅为滚动 24 小时` : "等待行情数据"}</p></div><div className="flex rounded-lg border p-1" role="group" aria-label="走势周期">{(["5m", "1h", "4h", "1d"] as const).map((value) => <button key={value} onClick={() => setInterval(value)} aria-pressed={interval === value} className={`rounded px-3 py-1.5 text-xs ${interval === value ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}>{{ "5m": "5 分", "1h": "1 时", "4h": "4 时", "1d": "日线" }[value]}</button>)}</div></div>
@@ -348,7 +344,7 @@ export function MarketDashboard() {
     <GitHubBackupDialog scope="markets" open={githubBackupOpen} settings={githubSettings} marketSettings={settings} onOpenChange={setGithubBackupOpen} onSettingsSaved={setGithubSettings} onRestored={async (restored) => {
       await writeMarketData("settings", restored);
       setSettings(restored);
-      clearDrag(); clearTagDrag(); setSearch(""); setSelectedTags([]); setPage(0); setSelectedId(""); setSort("default"); setSortNotice("");
+      clearDrag(); clearTagDrag(); setSearch(""); setSelectedTags([]); setSelectedId(""); setSort("default"); setSortNotice("");
     }} />
   </div>;
 }
