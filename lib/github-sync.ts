@@ -3,10 +3,13 @@ import { compressBackupJson, decompressBackupJson } from "@/lib/backup-compressi
 import type { GitHubBackupSettings } from "@/lib/indexed-db";
 import type { NavigationLink } from "@/lib/links";
 import type { NavigationNote } from "@/lib/notes";
+import { createMarketExport, parseMarketImport } from "@/lib/market-transfer";
+import type { MarketSettings } from "@/lib/markets";
 
 const API = "https://api.github.com";
 const BACKUP_FILE = "qidian-navigation-backup.json.gz";
 const LEGACY_BACKUP_FILE = "qidian-navigation-backup.json";
+const MARKET_BACKUP_FILE = "qidian-markets-backup.json.gz";
 
 function repositoryPath(repository: string) {
   const parts = repository.trim().split("/");
@@ -64,13 +67,13 @@ function encodeBase64(bytes: Uint8Array) {
   return btoa(binary);
 }
 
-export async function uploadLinksToGitHub(settings: GitHubBackupSettings, links: NavigationLink[], notes: NavigationNote[], categoryOrder: string[] = []) {
-  const compressed = await compressBackupJson(JSON.stringify(createLinkExport(links, notes, categoryOrder)));
+async function uploadBackup(settings: GitHubBackupSettings, filename: string, payload: unknown, message: string) {
+  const compressed = await compressBackupJson(JSON.stringify(payload));
   const repository = await validatePrivateRepository(settings);
-  const existing = await getBackupFile(settings, repository, BACKUP_FILE);
-  const url = `${API}/repos/${repository}/contents/${BACKUP_FILE}`;
+  const existing = await getBackupFile(settings, repository, filename);
+  const url = `${API}/repos/${repository}/contents/${filename}`;
   const body = {
-    message: "Update Qidian navigation backup",
+    message,
     content: encodeBase64(compressed),
     branch: settings.branch,
     ...(existing ? { sha: existing.sha } : {}),
@@ -79,10 +82,10 @@ export async function uploadLinksToGitHub(settings: GitHubBackupSettings, links:
   return await response.json() as { commit?: { html_url?: string } };
 }
 
-export async function downloadLinksFromGitHub(settings: GitHubBackupSettings) {
+async function downloadBackup(settings: GitHubBackupSettings, filename: string, legacyFilename?: string): Promise<unknown> {
   const repository = await validatePrivateRepository(settings);
-  const compressed = await getBackupFile(settings, repository, BACKUP_FILE);
-  const backup = compressed ?? await getBackupFile(settings, repository, LEGACY_BACKUP_FILE);
+  const compressed = await getBackupFile(settings, repository, filename);
+  const backup = compressed ?? (legacyFilename ? await getBackupFile(settings, repository, legacyFilename) : null);
   if (!backup) throw new Error("这个分支还没有备份文件，请先同步一次");
   let text: string;
   if (compressed) text = await decompressBackupJson(backup.bytes);
@@ -93,5 +96,21 @@ export async function downloadLinksFromGitHub(settings: GitHubBackupSettings) {
   let value: unknown;
   try { value = JSON.parse(text); }
   catch { throw new Error("GitHub 上的备份文件不是有效 JSON"); }
-  return parseLibraryImport(value);
+  return value;
+}
+
+export async function uploadLinksToGitHub(settings: GitHubBackupSettings, links: NavigationLink[], notes: NavigationNote[], categoryOrder: string[] = []) {
+  return uploadBackup(settings, BACKUP_FILE, createLinkExport(links, notes, categoryOrder), "Update Qidian navigation backup");
+}
+
+export async function downloadLinksFromGitHub(settings: GitHubBackupSettings) {
+  return parseLibraryImport(await downloadBackup(settings, BACKUP_FILE, LEGACY_BACKUP_FILE));
+}
+
+export async function uploadMarketsToGitHub(settings: GitHubBackupSettings, markets: MarketSettings) {
+  return uploadBackup(settings, MARKET_BACKUP_FILE, createMarketExport(markets), "Update Qidian market watchlist backup");
+}
+
+export async function downloadMarketsFromGitHub(settings: GitHubBackupSettings) {
+  return parseMarketImport(await downloadBackup(settings, MARKET_BACKUP_FILE));
 }

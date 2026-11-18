@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useTheme } from "next-themes";
-import { Bookmark, Check, CircleAlert, Compass, Database, Download, Cloud, CodeXml, LayoutGrid, LockKeyhole, Moon, NotebookPen, Plus, RefreshCw, Sun, Upload } from "lucide-react";
+import { Bookmark, Check, CircleAlert, Compass, Database, Download, Cloud, CodeXml, LayoutGrid, LockKeyhole, Moon, NotebookPen, Plus, RefreshCw, Sun, Upload, ChartNoAxesCombined } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -185,9 +185,10 @@ export function NavigationDashboard() {
   return <div className="page-shell flex min-h-dvh flex-col">
     <a href="#main" className="skip-link">跳转到收藏</a>
     <header className="snap-start border-b border-border/70">
-      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
-        <Link href="/" className="flex items-center gap-3" aria-label="栖点首页"><span className="brand-symbol"><Compass className="size-5" strokeWidth={1.5} /></span><span className="text-lg font-semibold tracking-[0.14em]">栖点</span><span className="ml-2 hidden text-[10px] tracking-[0.2em] text-muted-foreground sm:inline">YOUR LITTLE CORNER</span></Link>
-        <div className="flex items-center gap-3">
+      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between gap-2 px-4 sm:gap-4 sm:px-8">
+        <Link href="/" className="flex items-center gap-2 sm:gap-3" aria-label="栖点首页"><span className="brand-symbol"><Compass className="size-5" strokeWidth={1.5} /></span><span className="text-lg font-semibold tracking-[0.14em]">栖点</span><span className="ml-2 hidden text-[10px] tracking-[0.2em] text-muted-foreground sm:inline">YOUR LITTLE CORNER</span></Link>
+        <div className="flex items-center gap-1 sm:gap-3">
+          <Button asChild variant="ghost" size="icon" className="sm:w-auto sm:px-2.5"><Link href="/markets" aria-label="查看行情"><ChartNoAxesCombined /><span className="hidden sm:inline">行情</span></Link></Button>
           <input ref={importRef} type="file" accept=".json,application/json" className="hidden" onChange={importData} />
           <Button variant="ghost" size="icon-lg" aria-label="切换明暗主题" onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}><Sun className="theme-sun" /><Moon className="theme-moon" /></Button>
           <DropdownMenu>
@@ -200,7 +201,7 @@ export function NavigationDashboard() {
               <DropdownMenuItem disabled={status !== "online"} onSelect={() => setGithubBackupOpen(true)}><Cloud />GitHub 私有备份</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <Button size="lg" aria-label="添加链接" title="添加链接" onClick={() => setEditor({ link: null })} disabled={status !== "online"}><Plus data-icon="inline-start" /><span className="hidden sm:inline">添加链接</span></Button>
             <Button size="lg" variant="outline" aria-label="添加笔记" title="添加笔记" onClick={() => setNoteEditor({ note: null })} disabled={status !== "online"}><NotebookPen data-icon="inline-start" /><span className="hidden sm:inline">添加笔记</span></Button>
           </div>
